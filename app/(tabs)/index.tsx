@@ -1,53 +1,101 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
 
-const DUMMY_CHATS = [
-  {
-    id: '1',
-    name: 'Manila Chat',
-    lastMessage: 'Hey everyone! How are you?',
-    timestamp: '2:30 PM',
-    unread: 3,
-    avatar: 'https://images.unsplash.com/photo-1555921015-5532091f6026?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
-  },
-  {
-    id: '2',
-    name: 'Cebu Vibes',
-    lastMessage: 'The weather is great today!',
-    timestamp: '1:45 PM',
-    unread: 0,
-    avatar: 'https://images.unsplash.com/photo-1555921002-31349f069222?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
-  },
-];
+interface ChatroomWithMessages {
+  id: string;
+  name: string;
+  lastMessage: {
+    content: string;
+    created_at: string;
+    sender: {
+      username: string;
+      avatar_url: string | null;
+    }
+  } | null;
+}
 
 export default function ChatsScreen() {
+  const [loading, setLoading] = useState(true);
+  const [chatrooms, setChatrooms] = useState<ChatroomWithMessages[]>([]);
   const router = useRouter();
 
-  const renderItem = ({ item }) => (
+  useEffect(() => {
+    fetchChatrooms();
+  }, []);
+
+  const fetchChatrooms = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('chatrooms')
+        .select(`
+          id,
+          name,
+          messages:messages(
+            content,
+            created_at,
+            sender:profiles(username, avatar_url)
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(1, { foreignTable: 'messages' });
+
+      if (error) throw error;
+
+      // Transform the response to match our ChatroomWithMessages type
+      const transformedData: ChatroomWithMessages[] = data.map(room => ({
+        id: room.id,
+        name: room.name,
+        lastMessage: room.messages?.[0] ? {
+          content: room.messages[0].content,
+          created_at: room.messages[0].created_at,
+          sender: room.messages[0].sender[0]
+        } : null
+      }));
+      
+      setChatrooms(transformedData);
+    } catch (err) {
+      console.error('Error fetching chatrooms:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderItem = ({ item }: { item: ChatroomWithMessages }) => (
     <TouchableOpacity
       style={styles.chatItem}
-      onPress={() => router.push(`/chat/${item.id}`)}
+      onPress={() => router.push(`/chatroom/${item.id}`)}
     >
-      <Image source={{ uri: item.avatar }} style={styles.avatar} />
+      <Image 
+        source={{ 
+          uri: item.lastMessage?.sender.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800'
+        }} 
+        style={styles.avatar} 
+      />
       <View style={styles.chatInfo}>
         <View style={styles.chatHeader}>
           <Text style={styles.chatName}>{item.name}</Text>
-          <Text style={styles.timestamp}>{item.timestamp}</Text>
+          <Text style={styles.timestamp}>
+            {item.lastMessage ? new Date(item.lastMessage.created_at).toLocaleString() : ''}
+          </Text>
         </View>
         <View style={styles.messageRow}>
           <Text style={styles.lastMessage} numberOfLines={1}>
-            {item.lastMessage}
+            {item.lastMessage?.content || 'No messages yet'}
           </Text>
-          {item.unread > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadCount}>{item.unread}</Text>
-            </View>
-          )}
         </View>
       </View>
     </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text>Loading chats...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -55,7 +103,7 @@ export default function ChatsScreen() {
         <Text style={styles.title}>Chats</Text>
       </View>
       <FlatList
-        data={DUMMY_CHATS}
+        data={chatrooms}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
@@ -136,5 +184,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

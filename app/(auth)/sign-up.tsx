@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
 import { Link, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock, User } from 'lucide-react-native';
@@ -39,7 +39,14 @@ export default function SignUp() {
 
       router.replace('/');
     } catch (error) {
-      setError(error.message);
+      if (error instanceof Error) {
+        Alert.alert('Error', error.message);
+      } else if (typeof error === 'string') {
+        Alert.alert('Error', error);
+      } else {
+        Alert.alert('Error', 'An unknown error occurred');
+      }
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }

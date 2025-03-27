@@ -1,28 +1,41 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
 import ChatMessage from '@/components/ChatMessage';
 import MessageInput from '@/components/MessageInput';
 
+interface Profile {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+}
+
 interface Message {
   id: string;
   content: string;
   created_at: string;
-  profiles: {
-    id: string;
-    username: string;
-    avatar_url: string | null;
-  };
+  profiles: Profile;
 }
+
+const transformMessages = (data: any[]): Message[] => {
+  return data.map(msg => ({
+    id: msg.id,
+    content: msg.content,
+    created_at: msg.created_at,
+    profiles: {
+      id: msg.profiles[0]?.id || '',
+      username: msg.profiles[0]?.username || '',
+      avatar_url: msg.profiles[0]?.avatar_url || null
+    }
+  }));
+};
 
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams();
   const { session } = useAuth();
-  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -49,11 +62,9 @@ export default function ChatRoomScreen() {
         .limit(50);
 
       if (error) throw error;
-      setMessages(data || []);
+      setMessages(transformMessages(data || []));
     } catch (error) {
       console.error('Error fetching messages:', error);
-    } finally {
-      setLoading(false);
     }
   };
 

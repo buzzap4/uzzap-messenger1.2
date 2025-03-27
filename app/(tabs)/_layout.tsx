@@ -1,16 +1,19 @@
 import { Tabs } from 'expo-router';
-import { MessageSquare, Users, User, Settings } from 'lucide-react-native';
+import { MessageSquare, Users, MessageCircle, User, Settings } from 'lucide-react-native';
+import { useTheme } from '@/context/theme';
 
 export default function TabLayout() {
+  const { colors } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.gray,
         tabBarStyle: {
           borderTopWidth: 1,
-          borderTopColor: '#e5e5e5',
-          backgroundColor: '#fff',
+          borderTopColor: colors.border,
+          backgroundColor: colors.tabBar,
         },
         headerShown: false,
       }}>
@@ -20,6 +23,15 @@ export default function TabLayout() {
           title: 'Chats',
           tabBarIcon: ({ color, size }) => (
             <MessageSquare size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="direct-messages"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <MessageCircle size={size} color={color} />
           ),
         }}
       />

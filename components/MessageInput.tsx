@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { Send, Image as ImageIcon, Smile } from 'lucide-react-native';
+import { useTheme } from '@/context/theme';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
@@ -9,23 +10,39 @@ interface MessageInputProps {
 
 export default function MessageInput({ onSend, onImageSelect }: MessageInputProps) {
   const [message, setMessage] = useState('');
+  const { colors } = useTheme();
+  const scale = new Animated.Value(1);
 
   const handleSend = () => {
     if (message.trim()) {
-      onSend(message.trim());
-      setMessage('');
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 0.8,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        onSend(message.trim());
+        setMessage('');
+      });
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.inputContainer}>
+    <View style={[styles.container, { borderTopColor: colors.border, backgroundColor: colors.surface }]}>
+      <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
         <TouchableOpacity style={styles.button} onPress={onImageSelect}>
-          <ImageIcon size={24} color="#666" />
+          <ImageIcon size={24} color={colors.gray} />
         </TouchableOpacity>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { color: colors.text }]}
           placeholder="Type a message..."
+          placeholderTextColor={colors.gray}
           value={message}
           onChangeText={setMessage}
           multiline
@@ -34,16 +51,21 @@ export default function MessageInput({ onSend, onImageSelect }: MessageInputProp
           onSubmitEditing={handleSend}
         />
         <TouchableOpacity style={styles.button}>
-          <Smile size={24} color="#666" />
+          <Smile size={24} color={colors.gray} />
         </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        style={[styles.sendButton, !message.trim() && styles.sendButtonDisabled]}
-        onPress={handleSend}
-        disabled={!message.trim()}
-      >
-        <Send size={24} color={message.trim() ? '#fff' : '#999'} />
-      </TouchableOpacity>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <TouchableOpacity
+          style={[
+            styles.sendButton,
+            { backgroundColor: message.trim() ? colors.primary : colors.gray },
+          ]}
+          onPress={handleSend}
+          disabled={!message.trim()}
+        >
+          <Send size={24} color="#fff" />
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }

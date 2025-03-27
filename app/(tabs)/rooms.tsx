@@ -3,29 +3,17 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { ChevronRight } from 'lucide-react-native';
-
-interface Region {
-  id: string;
-  name: string;
-  provinces: Province[];
-}
-
-interface Province {
-  id: string;
-  name: string;
-  chatrooms: Chatroom[];
-}
-
-interface Chatroom {
-  id: string;
-  name: string;
-}
+import FloatingActionButton from '@/components/FloatingActionButton';
+import RegionDropdown from '@/components/RegionDropdown';
+import { MapPin, MessageCircle, Users } from 'lucide-react-native';
+import { Region, Province, Chatroom } from '@/types/Region';
 
 export default function RoomsScreen() {
   const router = useRouter();
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
 
   useEffect(() => {
     fetchRegions();
@@ -52,38 +40,20 @@ export default function RoomsScreen() {
       if (error) throw error;
       setRegions(data || []);
     } catch (err) {
-      setError(err.message);
+      if (err instanceof Error) {
+        console.error(err.message);
+      } else {
+        console.error('An unknown error occurred');
+      }
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
   };
 
-  const renderRegion = ({ item: region }: { item: Region }) => (
-    <View style={styles.regionContainer}>
-      <Text style={styles.regionName}>{region.name}</Text>
-      {region.provinces?.map((province) => (
-        <TouchableOpacity
-          key={province.id}
-          style={styles.provinceItem}
-          onPress={() => router.push(`/chatroom/${province.chatrooms[0]?.id}`)}
-        >
-          <Image
-            source={{
-              uri: `https://images.unsplash.com/photo-${Math.random().toString().slice(2, 11)}?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3`
-            }}
-            style={styles.provinceImage}
-          />
-          <View style={styles.provinceInfo}>
-            <Text style={styles.provinceName}>{province.name}</Text>
-            <Text style={styles.chatCount}>
-              {province.chatrooms?.length || 0} active chats
-            </Text>
-          </View>
-          <ChevronRight size={20} color="#999" />
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+  const filteredProvinces = selectedRegion
+    ? regions.find(r => r.id === selectedRegion.id)?.provinces || []
+    : regions.flatMap(r => r.provinces);
 
   if (error) {
     return (
@@ -105,13 +75,50 @@ export default function RoomsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Chat Rooms</Text>
-        <Text style={styles.subtitle}>Join conversations across the Philippines</Text>
+        <RegionDropdown
+          regions={regions}
+          selectedRegion={selectedRegion}
+          onSelect={(region: Region) => setSelectedRegion(region)}
+        />
       </View>
+
       <FlatList
-        data={regions}
-        renderItem={renderRegion}
+        data={filteredProvinces}
+        renderItem={({ item: province }) => (
+          <TouchableOpacity
+            key={province.id}
+            style={styles.provinceItem}
+            onPress={() => router.push(`/chatroom/${province.chatrooms[0]?.id}`)}
+          >
+            <View style={styles.provinceIconContainer}>
+              <MapPin size={24} color="#007AFF" />
+            </View>
+            <View style={styles.provinceInfo}>
+              <Text style={styles.provinceName}>{province.name}</Text>
+              <View style={styles.statsContainer}>
+                <View style={styles.stat}>
+                  <MessageCircle size={16} color="#666" />
+                  <Text style={styles.statText}>
+                    {province.chatrooms?.length || 0} chats
+                  </Text>
+                </View>
+                <View style={styles.stat}>
+                  <Users size={16} color="#666" />
+                  <Text style={styles.statText}>0 online</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadText}>2</Text>
+            </View>
+          </TouchableOpacity>
+        )}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
+      />
+
+      <FloatingActionButton
+        onPress={() => router.push('/new-message')}
       />
     </View>
   );
@@ -177,6 +184,15 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginRight: 12,
   },
+  provinceIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f0f8ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
   provinceInfo: {
     flex: 1,
   },
@@ -189,6 +205,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 4,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    marginTop: 4,
+  },
+  stat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  statText: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 4,
+  },
+  unreadBadge: {
+    backgroundColor: '#007AFF',
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 4,
+  },
+  unreadText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   errorText: {
     color: '#ff3b30',

@@ -3,12 +3,28 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useColorScheme } from 'react-native';
-import { ThemeProvider } from '@/context/theme';
+import { ThemeProvider, useTheme } from '@/context/theme';
 import { AuthProvider } from '@/context/auth';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 
 SplashScreen.preventAutoHideAsync();
+
+function StackNavigator() {
+  const { colors } = useTheme();
+  return (
+    <Stack 
+      screenOptions={{ 
+        headerShown: false,
+        contentStyle: {
+          backgroundColor: colors.background
+        }
+      }}>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -33,10 +49,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
-        </Stack>
+        <StackNavigator />
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       </AuthProvider>
     </ThemeProvider>
