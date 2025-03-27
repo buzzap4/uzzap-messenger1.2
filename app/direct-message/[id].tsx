@@ -8,7 +8,17 @@ import MessageInput from '@/components/MessageInput';
 import { FlashList } from '@shopify/flash-list';
 import { DirectMessage } from '../../types';
 
-export default function DirectMessageScreen() {
+export function DirectMessageScreen() {
+  interface Message  {
+    id: string;
+    content: string;
+    created_at: string;
+    sender?: {
+        id: string;
+        username: string;
+        avatar_url: string | null;
+    };
+}
   const { id } = useLocalSearchParams();
   const { session } = useAuth();
   const [messages, setMessages] = useState<DirectMessage[]>([]);
@@ -63,14 +73,18 @@ export default function DirectMessageScreen() {
     }]);
   };
 
-  const renderItem = ({ item }: { item: DirectMessage }) => (
-    <ChatMessage
-      content={item.content}
-      sender={item.sender}
-      timestamp={item.created_at}
-      isOwnMessage={item.sender.id === session?.user.id}
-    />
-  );
+  const renderItem = ({ item }: { item: Message }) => {
+    if (!item.sender) {
+      return null;
+    }
+    return (
+      <ChatMessage
+        content={item.content}
+        sender={item.sender}
+        timestamp={item.created_at}
+        isOwnMessage={item.sender.id === session?.user.id}
+      />);
+  };
 
   return (
     <KeyboardAvoidingView
@@ -95,3 +109,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 });
+

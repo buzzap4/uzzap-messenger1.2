@@ -21,6 +21,11 @@ export default function SignUp() {
         password,
       });
 
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { username: username },
+      });
+      if (updateError) throw updateError;
+
       if (signUpError) throw signUpError;
 
       if (user) {
@@ -39,6 +44,7 @@ export default function SignUp() {
 
       router.replace('/');
     } catch (error) {
+
       if (error instanceof Error) {
         Alert.alert('Error', error.message);
       } else if (typeof error === 'string') {
