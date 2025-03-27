@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { FlatList, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
@@ -19,17 +19,46 @@ interface Message {
   profiles: Profile;
 }
 
-const transformMessages = (data: any[]): Message[] => {
-  return data.map(msg => ({
-    id: msg.id,
-    content: msg.content,
-    created_at: msg.created_at,
-    profiles: {
-      id: msg.profiles[0]?.id || '',
-      username: msg.profiles[0]?.username || '',
-      avatar_url: msg.profiles[0]?.avatar_url || null
-    }
-  }));
+interface DatabaseMessage {
+  id: string;
+  content: string;
+  created_at: string;
+  user_id: string;
+  profiles: {
+    id: string;
+    username: string;
+    avatar_url: string | null;
+  }[];  // Change this to an array type
+}
+
+const createProfileIfNotExists = async (userId: string) => {
+  try {
+    // Simplified profile check
+    const { data: profile, error: checkError } = await supabase
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profile) return profile;
+
+    // Create basic profile if doesn't exist
+    const { data: newProfile, error: createError } = await supabase
+      .from('profiles')
+      .insert({
+        id: userId,
+        username: `user_${userId.slice(0, 6)}`,
+        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`
+      })
+      .select()
+      .single();
+
+    if (createError) throw createError;
+    return newProfile;
+  } catch (error) {
+    console.error('Profile creation error:', error);
+    return null;
+  }
 };
 
 export default function ChatRoomScreen() {
@@ -51,6 +80,7 @@ export default function ChatRoomScreen() {
           id,
           content,
           created_at,
+          user_id,
           profiles (
             id,
             username,
@@ -62,7 +92,24 @@ export default function ChatRoomScreen() {
         .limit(50);
 
       if (error) throw error;
-      setMessages(transformMessages(data || []));
+      
+      // Safer transformation with null checks
+      const transformedMessages = (data as DatabaseMessage[] || []).map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        created_at: msg.created_at,
+        profiles: msg.profiles ? {
+          id: msg.user_id,  // Use user_id directly instead of profiles array
+          username: msg.profiles[0]?.username || 'Unknown User',
+          avatar_url: msg.profiles[0]?.avatar_url || null
+        } : {
+          id: msg.user_id,
+          username: 'Unknown User',
+          avatar_url: null
+        }
+      }));
+      
+      setMessages(transformedMessages);
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
@@ -93,17 +140,47 @@ export default function ChatRoomScreen() {
 
   const handleSend = async (content: string) => {
     try {
-      const { error } = await supabase.from('messages').insert([
-        {
+      if (!session?.user?.id) {
+        Alert.alert('Error', 'Please sign in to send messages');
+        return;
+      }
+
+      // Create or get profile first
+      const profile = await createProfileIfNotExists(session.user.id);
+      if (!profile) {
+        Alert.alert('Error', 'Unable to create profile');
+        return;
+      }
+
+      // Then send message
+      const { data: message, error: messageError } = await supabase
+        .from('messages')
+        .insert({
           chatroom_id: id,
           content,
-          user_id: session?.user.id,
-        },
-      ]);
+          user_id: session.user.id
+        })
+        .select('id, content, created_at')
+        .single();
 
-      if (error) throw error;
+      if (messageError) throw messageError;
+
+      // Construct message with profile data we already have
+      const newMessage = {
+        id: message.id,
+        content: message.content,
+        created_at: message.created_at,
+        profiles: {
+          id: profile.id,
+          username: profile.username,
+          avatar_url: profile.avatar_url
+        }
+      };
+
+      setMessages(current => [newMessage, ...current]);
     } catch (error) {
       console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message');
     }
   };
 

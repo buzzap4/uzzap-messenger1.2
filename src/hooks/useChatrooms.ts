@@ -35,14 +35,22 @@ export const useChatrooms = () => {
 
   const fetchChatrooms = async () => {
     try {
+      // Add this check
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error('No active session');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('chatrooms')
         .select(`
           *,
           messages (
+            id,
             content,
             created_at,
-            profiles (
+            profiles:user_id (
               username,
               avatar_url
             )

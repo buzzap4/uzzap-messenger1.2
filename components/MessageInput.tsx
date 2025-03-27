@@ -58,7 +58,7 @@ export default function MessageInput({ onSend, onImageSelect }: MessageInputProp
         <TouchableOpacity
           style={[
             styles.sendButton,
-            { backgroundColor: message.trim() ? colors.primary : colors.gray },
+            { backgroundColor: message.trim() ? '#28A745' : colors.gray }, // Changed to green
           ]}
           onPress={handleSend}
           disabled={!message.trim()}

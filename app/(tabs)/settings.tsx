@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView } from 'react-native';
 import { useTheme } from '@/context/theme';
-import { Bell, Moon, Sun, Globe, Lock, Shield, HelpCircle } from 'lucide-react-native';
+import { Bell, Moon, Sun, Globe, Lock, Shield, HelpCircle, LogOut } from 'lucide-react-native';
+import { useAuth } from '@/context/auth';
 
 export default function SettingsScreen() {
   const { theme, setTheme, isDark, colors } = useTheme();
+  const { signOut } = useAuth();
   
   const toggleTheme = () => {
     setTheme(isDark ? 'light' : 'dark');
@@ -63,6 +65,9 @@ export default function SettingsScreen() {
       color: colors.gray,
       padding: 20,
       fontSize: 14,
+    },
+    error: {
+      color: '#ff3b30',
     },
   });
 
@@ -138,6 +143,18 @@ export default function SettingsScreen() {
           'Get help and contact support',
           <TouchableOpacity>
             <Text style={styles.actionButton}>Open</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Account</Text>
+        {renderSettingItem(
+          <LogOut size={24} color={colors.error} />,
+          'Log Out',
+          'Sign out of your account',
+          <TouchableOpacity onPress={signOut}>
+            <Text style={[styles.actionButton, { color: '#28A745' }]}>Log Out</Text>
           </TouchableOpacity>
         )}
       </View>

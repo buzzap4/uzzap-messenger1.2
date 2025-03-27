@@ -29,7 +29,7 @@ export default function FloatingActionButton({ onPress, style }: FABProps) {
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity 
-        style={[styles.fab, { backgroundColor: colors.primary }, style]}
+        style={[styles.fab, { backgroundColor: '#28A745' }, style]} // Changed to green
         onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}

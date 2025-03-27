@@ -1,44 +1,126 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
 import { useAuth } from '@/context/auth';
 import { supabase } from '@/lib/supabase';
 import { MessageCircle, Users, Clock, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { createProfile, getProfile, updateProfile } from '@/src/services/profileService';
 
 interface Profile {
+  id: string;
   username: string;
   display_name: string | null;
   avatar_url: string | null;
   status_message: string | null;
+  created_at: string;
+  last_seen: string;
 }
 
 export default function ProfileScreen() {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [avatarOptions, setAvatarOptions] = useState<string[]>([]);
+  const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProfile();
-  }, []);
+  }, [session?.user?.id]);
 
   const fetchProfile = async () => {
     try {
-      if (!session?.user) return;
+      setLoading(true);
+      if (!session?.user) {
+        throw new Error('No authenticated user');
+      }
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, display_name, avatar_url, status_message')
-        .eq('id', session.user.id)
-        .single();
+      const { data, error } = await getProfile(session.user.id);
+      
+      if (!data) {
+        // Create default profile if none exists
+        const defaultProfile = {
+          id: session.user.id,
+          username: `user_${session.user.id.slice(0, 8)}`,
+          display_name: 'New User',
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.id}`,
+        };
 
-      if (error) throw error;
-      setProfile(data);
+        const { data: newProfile, error: createError } = await createProfile(defaultProfile);
+        if (createError) throw createError;
+        setProfile(newProfile);
+      } else {
+        setProfile(data);
+      }
     } catch (err) {
+      console.error('Profile fetch error:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleProfileUpdate = async (updates: Partial<Profile>) => {
+    try {
+      setLoading(true);
+      if (!session?.user?.id) return;
+
+      // Convert updates to match the expected types
+      const sanitizedUpdates = {
+        display_name: updates.display_name || null,
+        status_message: updates.status_message || null,
+        avatar_url: updates.avatar_url || null,
+        username: updates.username,
+      };
+
+      const { error } = await updateProfile(session.user.id, sanitizedUpdates);
+      if (error) throw error;
+      
+      await fetchProfile();
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (err) {
+      console.error('Profile update error:', err);
+      Alert.alert('Error', 'Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const promptDisplayNameUpdate = () => {
+    Alert.prompt(
+      'Update Display Name',
+      'Enter your new display name',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Update',
+          onPress: (value) => {
+            if (value) handleProfileUpdate({ display_name: value });
+          }
+        }
+      ],
+      'plain-text',
+      profile?.display_name || ''
+    );
+  };
+
+  const promptStatusUpdate = () => {
+    Alert.prompt(
+      'Update Status',
+      'Enter your new status',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Update',
+          onPress: (value) => {
+            if (value) handleProfileUpdate({ status_message: value });
+          }
+        }
+      ],
+      'plain-text',
+      profile?.status_message || ''
+    );
   };
 
   const pickImage = async () => {
@@ -87,6 +169,23 @@ export default function ProfileScreen() {
     }
   };
 
+  const fetchAvatars = async () => {
+    const seeds = Array.from({ length: 5 }, () => Math.random().toString(36).substring(7));
+    const avatars = seeds.map(seed => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`);
+    setAvatarOptions(avatars);
+  };
+
+  const handleAvatarClick = async () => {
+    await fetchAvatars();
+    setShowAvatarModal(true);
+  };
+
+  const handleAvatarSelect = (avatar: string) => {
+    setSelectedAvatar(avatar);
+    setShowAvatarModal(false);
+    // Update avatar logic here (e.g., API call to save avatar)
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -106,10 +205,10 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={pickImage} style={styles.avatarContainer}>
+        <TouchableOpacity onPress={handleAvatarClick} style={styles.avatarContainer}>
           <Image
             source={{
-              uri: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800'
+              uri: selectedAvatar || profile?.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback'
             }}
             style={styles.avatar}
           />
@@ -117,9 +216,20 @@ export default function ProfileScreen() {
             <Camera size={20} color="#fff" />
           </View>
         </TouchableOpacity>
-        <Text style={styles.displayName}>{profile?.display_name || profile?.username}</Text>
+        <TouchableOpacity 
+          onPress={promptDisplayNameUpdate}
+        >
+          <Text style={styles.displayName}>{profile?.display_name || profile?.username}</Text>
+        </TouchableOpacity>
         <Text style={styles.username}>@{profile?.username}</Text>
-        <Text style={styles.status}>{profile?.status_message || 'No status message'}</Text>
+        <TouchableOpacity 
+          onPress={promptStatusUpdate}
+        >
+          <Text style={styles.status}>{profile?.status_message || 'Tap to set a status'}</Text>
+        </TouchableOpacity>
+        <Text style={styles.joinedDate}>
+          Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : ''}
+        </Text>
       </View>
 
       <View style={styles.stats}>
@@ -140,9 +250,22 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </TouchableOpacity>
+      {/* Avatar Selection Modal */}
+      <Modal visible={showAvatarModal} onRequestClose={() => setShowAvatarModal(false)}>
+        <View style={styles.modalContainer}>
+          <Text style={styles.modalTitle}>Select an Avatar</Text>
+          <View style={styles.avatarOptions}>
+            {avatarOptions.map((avatar, index) => (
+              <TouchableOpacity key={index} onPress={() => handleAvatarSelect(avatar)}>
+                <Image source={{ uri: avatar }} style={styles.avatarOption} />
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity onPress={() => setShowAvatarModal(false)} style={styles.modalButton}>
+            <Text style={styles.modalButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -201,6 +324,11 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 8,
   },
+  joinedDate: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 8,
+  },
   stats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -222,20 +350,40 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-  signOutButton: {
-    margin: 20,
-    padding: 16,
-    backgroundColor: '#ff3b30',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  signOutText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   errorText: {
     color: '#ff3b30',
     textAlign: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  avatarOptions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  },
+  avatarOption: {
+    width: 80,
+    height: 80,
+    margin: 10,
+    borderRadius: 40,
+  },
+  modalButton: {
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: '#007BFF',
+    borderRadius: 5,
+  },
+  modalButtonText: {
+    color: '#FFF',
+    fontSize: 16,
   },
 });

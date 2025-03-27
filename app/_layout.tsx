@@ -7,6 +7,7 @@ import { ThemeProvider, useTheme } from '@/context/theme';
 import { AuthProvider } from '@/context/auth';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
+import Header from '@/components/Header';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -15,13 +16,14 @@ function StackNavigator() {
   return (
     <Stack 
       screenOptions={{ 
-        headerShown: false,
+        headerShown: true,
+        header: () => <Header />,
         contentStyle: {
           backgroundColor: colors.background
         }
       }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: true }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: true }} />
     </Stack>
   );
 }

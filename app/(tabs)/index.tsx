@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import Avatar from '@/components/Avatar';
 
 interface ChatroomWithMessages {
   id: string;
@@ -67,11 +68,11 @@ export default function ChatsScreen() {
       style={styles.chatItem}
       onPress={() => router.push(`/chatroom/${item.id}`)}
     >
-      <Image 
-        source={{ 
-          uri: item.lastMessage?.sender.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800'
-        }} 
-        style={styles.avatar} 
+      <Avatar
+        uri={item.lastMessage?.sender?.avatar_url}
+        username={item.lastMessage?.sender?.username}
+        size={50}
+        style={styles.avatar}
       />
       <View style={styles.chatInfo}>
         <View style={styles.chatHeader}>
