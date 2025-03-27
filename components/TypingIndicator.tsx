@@ -4,23 +4,37 @@ import { useTheme } from '@/context/theme';
 
 export default function TypingIndicator() {
   const { colors } = useTheme();
-  const dots = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
 
-  useEffect(() => {
-    const animations = dots.map((dot, i) =>
+  const dotRefs = [
+    useRef(new Animated.Value(0)),
+    useRef(new Animated.Value(0)),
+    useRef(new Animated.Value(0)),
+  ];
+
+  const dots = dotRefs.map(ref => ref.current);
+
+  const animations = dots.map((dot, i) => {
+    return Animated.loop(
       Animated.sequence([
         Animated.delay(i * 200),
-        Animated.loop(
-          Animated.sequence([
-            Animated.spring(dot, { toValue: 1, useNativeDriver: true }),
-            Animated.spring(dot, { toValue: 0, useNativeDriver: true }),
-          ])
-        ),
-      ])
-    );
+        Animated.timing(dot, {          
+          toValue: 1,
 
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dot, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ])
+    )
+  });
+
+  useEffect(() => {
     Animated.parallel(animations).start();
-  }, []);
+  }, [animations]);
 
   return (
     <View style={styles.container}>
@@ -30,7 +44,7 @@ export default function TypingIndicator() {
           style={[
             styles.dot,
             { backgroundColor: colors.text },
-            { transform: [{ scale: dot }] },
+            { transform: [{ scale: dot.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) }] },
           ]}
         />
       ))}

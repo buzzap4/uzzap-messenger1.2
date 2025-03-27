@@ -19,7 +19,7 @@ export default function SignIn() {
         useNativeDriver: true,
       })
     )).start();
-  }, []);
+  }, [animatedValues]);
 
   const renderLogo = () => {
     const letters = ['U', 'z', 'z', 'a', 'p'];

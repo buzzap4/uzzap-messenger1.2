@@ -5,7 +5,7 @@ import { Bell, Moon, Sun, Globe, Lock, Shield, HelpCircle, LogOut } from 'lucide
 import { useAuth } from '@/context/auth';
 
 export default function SettingsScreen() {
-  const { theme, setTheme, isDark, colors } = useTheme();
+  const { setTheme, isDark, colors } = useTheme();
   const { signOut } = useAuth();
   
   const toggleTheme = () => {

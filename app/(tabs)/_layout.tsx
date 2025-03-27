@@ -1,8 +1,6 @@
 import { Tabs } from 'expo-router';
 import { MessageSquare, Users, MessageCircle, User, Settings } from 'lucide-react-native';
 import { useTheme } from '@/context/theme';
-import Header from '@/components/Header';
-
 export default function TabLayout() {
   const { colors } = useTheme();
 

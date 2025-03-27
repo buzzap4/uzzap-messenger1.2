@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, ActivityIndicator, Image, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, ActivityIndicator, Modal } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, User, Upload } from 'lucide-react-native';
+import { User, Upload } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
 import { createProfile } from '@/src/services/profileService';
@@ -40,7 +40,7 @@ export default function OnboardingScreen() {
           .from('avatars')
           .upload(filePath, blob);
 
-        if (uploadError) throw uploadError;
+        if (uploadError) throw new Error(uploadError.message);
 
         // Get public URL
         const { data: { publicUrl } } = supabase.storage
@@ -48,7 +48,7 @@ export default function OnboardingScreen() {
           .getPublicUrl(filePath);
 
         setAvatarUrl(publicUrl);
-      } catch (error) {
+      } catch {
         Alert.alert('Error', 'Failed to upload image');
       }
     }
@@ -73,40 +73,43 @@ export default function OnboardingScreen() {
         return;
       }
 
-      const { data, error } = await createProfile({
+      const { data } = await createProfile({
+        
         id: session.user.id,
         username: username.trim(),
         display_name: displayName.trim(),
         avatar_url: avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
       });
 
-      if (error) {
+      let uploadError;
+      if(data?.error) {
+        uploadError = data?.error;
         // Check for specific error types
-        if (error.message.includes('username')) {
+        if (uploadError.message.includes('username')) {
           Alert.alert('Error', 'Username is already taken or invalid');
-        } else if (error.message.includes('authentication')) {
+        } else if (uploadError.message.includes('authentication')) {
           Alert.alert('Error', 'Please sign in again');
           await signOut();
-        } else {
-          throw error;
         }
         return;
       }
 
-      if (!data) {
-        throw new Error('No profile data returned');
+      
+
+      if (!data?.data) {
+        throw new Error("No profile data returned");
       }
 
       await completeOnboarding();
       router.replace('/');
-    } catch (error) {
-      console.error('Onboarding error:', error);
+    } catch (err) {
+      console.error('Onboarding error:', err);
       Alert.alert(
-        'Error',
-        error instanceof Error 
-          ? error.message 
-          : 'Failed to complete onboarding'
-      );
+          "Error",
+          err instanceof Error
+            ? err.message
+            : "Failed to complete onboarding"
+        );
     } finally {
       setLoading(false);
     }
@@ -234,19 +237,6 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     marginBottom: 32,
     position: 'relative',
-  },
-  avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-  },
-  avatarPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#f5f5f5',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   uploadButton: {
     position: 'absolute',

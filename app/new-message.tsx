@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, Image } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -14,13 +14,13 @@ export default function NewMessageScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
 
-  useEffect(() => {
-    if (searchQuery.length >= 2) {
-      searchUsers();
-    }
-  }, [searchQuery]);
+   useEffect(() => {
+     if (searchQuery.length >= 2) {
+       searchUsers();
+     }
+   }, [searchQuery, searchUsers]);
 
-  const searchUsers = async () => {
+  const searchUsers = useCallback(async () => {
     const { data, error } = await supabase
       .from('profiles')
       .select('id, username, avatar_url')
@@ -30,7 +30,7 @@ export default function NewMessageScreen() {
     if (!error && data) {
       setUsers(data);
     }
-  };
+  },[searchQuery]);
 
   const startConversation = async (userId: string) => {
     // Implementation for starting a new conversation

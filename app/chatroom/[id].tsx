@@ -62,7 +62,7 @@ const createProfileIfNotExists = async (userId: string) => {
 };
 
 export default function ChatRoomScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const flatListRef = useRef<FlatList>(null);
@@ -87,7 +87,7 @@ export default function ChatRoomScreen() {
             avatar_url
           )
         `)
-        .eq('chatroom_id', id)
+        .eq('chatroom_id', id!)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -124,7 +124,7 @@ export default function ChatRoomScreen() {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `chatroom_id=eq.${id}`,
+          filter: `chatroom_id=eq.${id!}`,
         },
         (payload) => {
           const newMessage = payload.new as Message;
@@ -139,50 +139,51 @@ export default function ChatRoomScreen() {
   };
 
   const handleSend = async (content: string) => {
-    try {
-      if (!session?.user?.id) {
+    if (!session) {
         Alert.alert('Error', 'Please sign in to send messages');
         return;
       }
-
-      // Create or get profile first
-      const profile = await createProfileIfNotExists(session.user.id);
-      if (!profile) {
-        Alert.alert('Error', 'Unable to create profile');
-        return;
-      }
-
-      // Then send message
-      const { data: message, error: messageError } = await supabase
-        .from('messages')
-        .insert({
-          chatroom_id: id,
-          content,
-          user_id: session.user.id
-        })
-        .select('id, content, created_at')
-        .single();
-
-      if (messageError) throw messageError;
-
-      // Construct message with profile data we already have
-      const newMessage = {
-        id: message.id,
-        content: message.content,
-        created_at: message.created_at,
-        profiles: {
-          id: profile.id,
-          username: profile.username,
-          avatar_url: profile.avatar_url
+    if(session){
+    try {
+        // Create or get profile first
+        const profile = await createProfileIfNotExists(session.user.id);
+        if (!profile) {
+          Alert.alert('Error', 'Unable to create profile');
+          return;
         }
-      };
 
-      setMessages(current => [newMessage, ...current]);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      Alert.alert('Error', 'Failed to send message');
-    }
-  };
+        // Then send message
+        const { data: message, error: messageError } = await supabase
+          .from('messages')
+          .insert({
+            chatroom_id: id,
+            content,
+            user_id: session.user.id
+          })
+          .select('id, content, created_at')
+          .single();
+
+        if (messageError) throw messageError;
+
+        // Construct message with profile data we already have
+        const newMessage = {
+          id: message.id,
+          content: message.content,
+          created_at: message.created_at,
+          profiles: {
+            id: profile.id,
+            username: profile.username,
+            avatar_url: profile.avatar_url
+          }
+        };
+
+        setMessages(current => [newMessage, ...current]);
+      } catch (error) {
+        console.error('Error sending message:', error);
+        Alert.alert('Error', 'Failed to send message');
+      }
+    };
+  }
 
   return (
     <KeyboardAvoidingView

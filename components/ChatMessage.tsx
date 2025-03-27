@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { View, Text, Image, StyleSheet, Animated, Pressable } from 'react-native';
 import { formatDistanceToNow } from 'date-fns';
@@ -19,8 +19,6 @@ interface ChatMessageProps {
 
 export default function ChatMessage({ content, sender, timestamp, isOwnMessage, reactions, isRead, isPinned }: ChatMessageProps) {
   const { colors } = useTheme();
-  const [showReactions, setShowReactions] = useState(false);
-  const scaleAnim = useRef(new Animated.Value(0)).current;
 
   const styles = StyleSheet.create({
     container: {
@@ -100,7 +98,6 @@ export default function ChatMessage({ content, sender, timestamp, isOwnMessage, 
         />
       )}
       <Pressable
-        onLongPress={() => setShowReactions(true)}
         style={[styles.messageContent, isOwnMessage && styles.ownMessageContent]}
       >
         {isPinned && <Icon name="pin" size={16} color={colors.text} style={styles.pinIcon} />}

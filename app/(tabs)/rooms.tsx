@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { ChevronRight } from 'lucide-react-native';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import RegionDropdown from '@/components/RegionDropdown';
 import { MapPin, MessageCircle, Users } from 'lucide-react-native';
-import { Region, Province, Chatroom } from '@/types/Region';
+import { Region } from '@/types/Region';
 
 export default function RoomsScreen() {
   const router = useRouter();

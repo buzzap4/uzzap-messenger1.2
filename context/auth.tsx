@@ -69,12 +69,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (loading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
     const isAuthScreen = ['sign-in', 'sign-up'].includes(segments[segments.length - 1] || '');
 
     if (!session && !isAuthScreen) {
@@ -84,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Logged in but on auth screen, redirect to home
       router.replace('/');
     }
-  }, [session, loading, segments]);
+  }, [session, loading, segments, router]);
 
   const signOut = async () => {
     try {

@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Animated } from 'react-native';
 import { Link, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Mail, Lock, User } from 'lucide-react-native';
 import { createProfile } from '@/src/services/profileService';
-
+ 
 export default function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,7 +21,7 @@ export default function SignUp() {
         useNativeDriver: true,
       })
     )).start();
-  }, []);
+  }, [animatedValues]);
 
   const renderLogo = () => {
     const letters = ['U', 'z', 'z', 'a', 'p'];
@@ -106,11 +105,7 @@ export default function SignUp() {
       // Success - navigate to home
       router.replace('/');
     } catch (error) {
-<<<<<<< HEAD
-
-=======
       console.error('Sign up error:', error);
->>>>>>> 12b7d51 (update)
       if (error instanceof Error) {
         Alert.alert('Error', error.message);
         setError(error.message);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export interface Message {
@@ -31,7 +31,7 @@ export const useMessages = (chatroomId: string) => {
     }));
   };
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('messages')
@@ -52,13 +52,13 @@ export const useMessages = (chatroomId: string) => {
       console.error('Error fetching messages:', error);
       setMessages([]);
     }
-  };
+  },[chatroomId]);
 
   useEffect(() => {
     if (chatroomId) {
       fetchMessages();
     }
-  }, [chatroomId]);
+  }, [chatroomId, fetchMessages]);
 
   return { messages, fetchMessages };
 };

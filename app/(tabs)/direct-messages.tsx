@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Image } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Search, Plus } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { Search, Plus, Loader2 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
 
@@ -25,15 +25,11 @@ interface DirectMessage {
 export default function DirectMessagesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [messages, setMessages] = useState<DirectMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { session } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    fetchDirectMessages();
-  }, []);
-
-  const fetchDirectMessages = async () => {
+  const [isLoading, setIsLoading] = useState(true);
+  const { session } = useAuth();  
+  
+  const fetchDirectMessages = useCallback(async () => {
+   
     try {
       const { data, error } = await supabase
         .from('direct_messages')
@@ -57,13 +53,17 @@ export default function DirectMessagesScreen() {
         receiver: msg.receiver[0]
       })) || [];
       
-      setMessages(transformedData);
+      setMessages(transformedData);     
     } catch (err) {
       console.error('Error fetching messages:', err);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  };
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    fetchDirectMessages();
+  },[fetchDirectMessages]);
 
   const renderItem = ({ item }: { item: DirectMessage }) => {
     const otherUser = item.sender.id === session?.user.id ? item.receiver : item.sender;
@@ -103,10 +103,12 @@ export default function DirectMessagesScreen() {
     );
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <Text>Loading messages...</Text>
+        <Loader2 
+          size={40}
+        />
       </View>
     );
   }
@@ -247,6 +249,7 @@ const styles = StyleSheet.create({
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'center'
   },
+
 });

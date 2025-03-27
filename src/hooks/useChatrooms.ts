@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export interface Chatroom {
@@ -33,7 +33,7 @@ export const useChatrooms = () => {
     }));
   };
 
-  const fetchChatrooms = async () => {
+  const fetchChatrooms = useCallback(async () => {
     try {
       // Add this check
       const { data: { session } } = await supabase.auth.getSession();
@@ -69,11 +69,11 @@ export const useChatrooms = () => {
       console.error('Error fetching chatrooms:', error);
       setChatrooms([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchChatrooms();
-  }, []);
+  }, [fetchChatrooms]);
 
   return { chatrooms, fetchChatrooms };
 };

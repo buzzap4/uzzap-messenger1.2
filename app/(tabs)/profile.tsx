@@ -1,10 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
 import { useAuth } from '@/context/auth';
-import { supabase } from '@/lib/supabase';
 import { MessageCircle, Users, Clock, Camera } from 'lucide-react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { createProfile, getProfile, updateProfile } from '@/src/services/profileService';
+import { createProfile, getProfile, updateProfile } from '@/src/services/profileService'; 
 
 interface Profile {
   id: string;
@@ -20,24 +18,20 @@ export default function ProfileScreen() {
   const { session } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarOptions, setAvatarOptions] = useState<string[]>([]);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [session?.user?.id]);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       setLoading(true);
       if (!session?.user) {
-        throw new Error('No authenticated user');
+        throw new Error('No authenticated user');        
       }
 
-      const { data, error } = await getProfile(session.user.id);
-      
+      const { data } = await getProfile(session.user.id);
+
       if (!data) {
         // Create default profile if none exists
         const defaultProfile = {
@@ -53,36 +47,39 @@ export default function ProfileScreen() {
       } else {
         setProfile(data);
       }
-    } catch (err) {
-      console.error('Profile fetch error:', err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } catch (error) {
+      console.error('Profile fetch error:', error);
+      setFetchError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
-  };
+  },[session?.user]);
 
-  const handleProfileUpdate = async (updates: Partial<Profile>) => {
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile,session?.user]);
+  const handleProfileUpdate = async (updates: Partial<Profile>) => {    
     try {
       setLoading(true);
-      if (!session?.user?.id) return;
+      if (!session?.user?.id) return;      
 
       // Convert updates to match the expected types
-      const sanitizedUpdates = {
+      const sanitizedUpdates: Partial<Profile> = {
         display_name: updates.display_name || null,
         status_message: updates.status_message || null,
         avatar_url: updates.avatar_url || null,
         username: updates.username,
       };
-
-      const { error } = await updateProfile(session.user.id, sanitizedUpdates);
-      if (error) throw error;
       
-      await fetchProfile();
-      Alert.alert('Success', 'Profile updated successfully');
-    } catch (err) {
-      console.error('Profile update error:', err);
-      Alert.alert('Error', 'Failed to update profile');
-    } finally {
+      const { error: updateError } = await updateProfile(session.user.id, sanitizedUpdates);
+      if (updateError) throw updateError;
+      
+      await fetchProfile();      
+      Alert.alert('Success', 'Profile updated successfully');      
+    } catch (error) {
+      console.error('Profile update error:', error);      
+      Alert.alert('Error', 'Failed to update profile');      
+    } finally {      
       setLoading(false);
     }
   };
@@ -120,62 +117,16 @@ export default function ProfileScreen() {
       ],
       'plain-text',
       profile?.status_message || ''
-    );
+    );    
   };
-
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
-    });
-
-    if (!result.canceled && result.assets[0].uri) {
-      try {
-        const uri = result.assets[0].uri;
-        const fileExt = uri.substring(uri.lastIndexOf('.') + 1);
-        const fileName = `${session?.user.id}.${fileExt}`;
-        const filePath = `avatars/${fileName}`;
-
-        // Upload to Supabase Storage
-        const response = await fetch(uri);
-        const blob = await response.blob();
-
-        const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(filePath, blob);
-
-        if (uploadError) throw uploadError;
-
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(filePath);
-
-        // Update profile
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ avatar_url: publicUrl })
-          .eq('id', session?.user.id);
-
-        if (updateError) throw updateError;
-
-        // Refresh profile data
-        fetchProfile();
-      } catch (error) {
-        console.error('Error uploading image:', error);
-      }
-    }
-  };
-
+  
   const fetchAvatars = async () => {
     const seeds = Array.from({ length: 5 }, () => Math.random().toString(36).substring(7));
     const avatars = seeds.map(seed => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`);
     setAvatarOptions(avatars);
   };
 
-  const handleAvatarClick = async () => {
+  const handleAvatarClick = async () => {    
     await fetchAvatars();
     setShowAvatarModal(true);
   };
@@ -183,7 +134,6 @@ export default function ProfileScreen() {
   const handleAvatarSelect = (avatar: string) => {
     setSelectedAvatar(avatar);
     setShowAvatarModal(false);
-    // Update avatar logic here (e.g., API call to save avatar)
   };
 
   if (loading) {
@@ -194,10 +144,10 @@ export default function ProfileScreen() {
     );
   }
 
-  if (error) {
+  if (fetchError) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorText}>{fetchError}</Text>
       </View>
     );
   }
@@ -215,15 +165,13 @@ export default function ProfileScreen() {
           <View style={styles.cameraButton}>
             <Camera size={20} color="#fff" />
           </View>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          onPress={promptDisplayNameUpdate}
-        >
+        </TouchableOpacity>        
+        <TouchableOpacity onPress={promptDisplayNameUpdate}>
           <Text style={styles.displayName}>{profile?.display_name || profile?.username}</Text>
         </TouchableOpacity>
         <Text style={styles.username}>@{profile?.username}</Text>
-        <TouchableOpacity 
-          onPress={promptStatusUpdate}
+        <TouchableOpacity
+          onPress={promptStatusUpdate}          
         >
           <Text style={styles.status}>{profile?.status_message || 'Tap to set a status'}</Text>
         </TouchableOpacity>
@@ -268,7 +216,7 @@ export default function ProfileScreen() {
       </Modal>
     </ScrollView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
