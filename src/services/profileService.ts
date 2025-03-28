@@ -89,6 +89,7 @@ export const updateProfile = async (
   }
 ) => {
   try {
+    // Ensure only provided fields are updated
     const { data, error } = await supabase
       .from('profiles')
       .update(updates)

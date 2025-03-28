@@ -9,9 +9,10 @@ import { EmojiPickerModal } from './EmojiPickerModal';
 interface MessageInputProps {
   onSend: (message: string, type?: 'text' | 'image') => void;
   onImageSelect?: () => void;
+  disabled?: boolean;
 }
 
-export default function MessageInput({ onSend, onImageSelect }: MessageInputProps) {
+export default function MessageInput({ onSend, onImageSelect, disabled }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const { colors } = useTheme();
   const scale = new Animated.Value(1);
@@ -73,10 +74,10 @@ export default function MessageInput({ onSend, onImageSelect }: MessageInputProp
         <TouchableOpacity
           style={[
             styles.sendButton,
-            { backgroundColor: message.trim() ? '#28A745' : colors.gray }, // Changed to green
+            { backgroundColor: message.trim() && !disabled ? '#28A745' : colors.gray }, // Changed to green
           ]}
           onPress={handleSend}
-          disabled={!message.trim()}
+          disabled={!message.trim() || disabled}
         >
           <Send size={24} color="#fff" />
         </TouchableOpacity>

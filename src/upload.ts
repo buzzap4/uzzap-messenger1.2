@@ -10,15 +10,18 @@ export const uploadFile = async (file: File, filePath: string): Promise<string |
 
     // Upload the file
     const { data, error } = await supabase.storage
-      .from(storageConfig.bucketName)
+      .from(storageConfig.bucketName) // Use centralized bucket name
       .upload(filePath, file);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Upload error:', error);
+      throw error; // Re-throw the error for the caller to handle
+    }
 
     console.log('File uploaded successfully:', data);
     return data?.path || null;
   } catch (error) {
-    console.error('Upload error:', error);
-    return null;
+    console.error('Error during file upload:', error);
+    throw error; // Re-throw the error for the caller to handle
   }
 };

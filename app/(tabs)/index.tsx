@@ -38,7 +38,10 @@ export default function ChatsScreen() {
           messages:messages(
             content,
             created_at,
-            sender:profiles(username, avatar_url)
+            sender:profiles(
+              username,
+              avatar_url
+            )
           )
         `)
         .order('created_at', { ascending: false })
@@ -46,17 +49,16 @@ export default function ChatsScreen() {
 
       if (error) throw error;
 
-      // Transform the response to match our ChatroomWithMessages type
       const transformedData: ChatroomWithMessages[] = data.map(room => ({
         id: room.id,
         name: room.name,
         lastMessage: room.messages?.[0] ? {
           content: room.messages[0].content,
           created_at: room.messages[0].created_at,
-          sender: room.messages[0].sender[0]
+          sender: room.messages[0].sender[0] // Ensure sender is a single object
         } : null
       }));
-      
+
       setChatrooms(transformedData);
     } catch (err) {
       console.error('Error fetching chatrooms:', err);
@@ -71,8 +73,8 @@ export default function ChatsScreen() {
       onPress={() => router.push(`/chatroom/${item.id}`)}
     >
       <Avatar
-        uri={item.lastMessage?.sender?.avatar_url}
-        username={item.lastMessage?.sender?.username}
+        uri={item.lastMessage?.sender?.avatar_url || 'https://via.placeholder.com/50'}
+        username={item.lastMessage?.sender?.username || 'Unknown'}
         size={50}
         style={styles.avatar}
       />

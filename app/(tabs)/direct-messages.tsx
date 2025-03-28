@@ -5,6 +5,7 @@ import { Search, Plus, Loader2 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
 import { useTheme } from '@/context/theme';
+import { DEFAULT_AVATAR_URL } from '@/lib/constants';
 
 interface DirectMessage {
   id: string;
@@ -80,7 +81,7 @@ export default function DirectMessagesScreen() {
         <View style={styles.avatarContainer}>
           <Image 
             source={{ 
-              uri: otherUser.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800'
+              uri: otherUser.avatar_url || `${DEFAULT_AVATAR_URL}?seed=${otherUser.username}`
             }} 
             style={styles.avatar} 
           />

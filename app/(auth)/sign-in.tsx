@@ -6,14 +6,151 @@ import { Mail, Lock } from 'lucide-react-native';
 import { useToast } from '@/context/toast';
 import { useTheme } from '@/context/theme';
 
+const useDynamicStyles = (colors: any) =>
+  StyleSheet.create({
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.inputBackground,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border, // Adjust border color dynamically
+      marginBottom: 16,
+      padding: Platform.OS === 'ios' ? 12 : 4,
+    },
+    inputIcon: {
+      marginRight: 8,
+      marginLeft: 8,
+      color: colors.text, // Adjust icon color dynamically
+    },
+    input: {
+      flex: 1,
+      fontSize: 16,
+      borderRadius: 8,
+      padding: Platform.OS === 'ios' ? 12 : 8,
+      color: colors.text, // Adjust text color dynamically
+    },
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    logoContainer: {
+      flexDirection: 'row',
+      marginBottom: 40,
+    },
+    logoLetter: {
+      fontSize: 48, // Increased font size
+      fontWeight: '900',
+      fontFamily: 'Poppins-Bold', // Updated font family
+      color: '#28A745', // Match button color
+      marginHorizontal: 4,
+    },
+    formContainer: {
+      padding: 20,
+      borderRadius: 12,
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      elevation: 5,
+      width: '100%',
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    subtitle: {
+      fontSize: 16,
+      marginBottom: 24,
+      textAlign: 'center',
+    },
+    button: {
+      backgroundColor: '#28A745', // Match button color
+      padding: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 8,
+    },
+    buttonDisabled: {
+      backgroundColor: '#ccc',
+    },
+    buttonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'center', // Center align the text
+      alignItems: 'center', // Vertically align the text
+      marginTop: 24,
+    },
+    footerText: {
+      color: '#666',
+      textAlign: 'center', // Ensure text is centered
+    },
+    link: {
+      marginTop: 0, // Remove extra margin
+    },
+    linkText: {
+      color: '#28A745', // Match button color
+      fontWeight: '600',
+      textAlign: 'center', // Ensure text is centered
+    },
+    error: {
+      color: '#ff3b30',
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    progressBarContainer: {
+      height: 60, // Increased height for progress bar and label
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginVertical: 20,
+    },
+    stepLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      fontFamily: 'Poppins-Bold', // Updated font family
+      color: '#28A745', // Match button color
+      marginBottom: 10,
+    },
+    progressBarBackground: {
+      width: '80%',
+      height: 8,
+      backgroundColor: '#ddd',
+      borderRadius: 4,
+      overflow: 'hidden',
+    },
+    progressBarFill: {
+      height: '100%',
+      backgroundColor: '#28A745', // Match button color
+      borderRadius: 4,
+    },
+  });
+
 export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState(0); // Track the current step
   const animatedValues = useRef([...Array(5)].map(() => new Animated.Value(0))).current; // 5 letters in "Uzzap"
   const { showToast } = useToast();
   const { colors } = useTheme();
+  const fadeAnim = useRef(new Animated.Value(0)).current; // Animation value for fading
+  const [currentStep, setCurrentStep] = useState(0); // Track the current step
+  const progressAnim = useRef(new Animated.Value(0)).current; // Animation value for progress bar
+  const styles = useDynamicStyles(colors);
+
+  const steps = ['Connecting', 'Authenticating', 'Initializing'];
 
   useEffect(() => {
     Animated.stagger(100, animatedValues.map(anim =>
@@ -24,6 +161,40 @@ export default function SignIn() {
       })
     )).start();
   }, [animatedValues]);
+
+  useEffect(() => {
+    const animateSteps = async () => {
+      for (let i = 0; i < steps.length; i++) {
+        setCurrentStep(i);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
+
+        Animated.timing(progressAnim, {
+          toValue: (i + 1) / steps.length, // Increment progress
+          duration: 1000,
+          useNativeDriver: false,
+        }).start();
+
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
+
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait for fade-out
+      }
+
+      // Add a short delay after "Initializing" for smooth transition
+      await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 0.5 seconds
+    };
+
+    // Automatically start animations when the screen loads
+    animateSteps();
+  }, []); // Empty dependency array to run only once when the component mounts
 
   const renderLogo = () => {
     const letters = ['U', 'z', 'z', 'a', 'p'];
@@ -54,18 +225,57 @@ export default function SignIn() {
     );
   };
 
+  const renderProgressBar = () => (
+    <View style={styles.progressBarContainer}>
+      <Animated.Text
+        style={[
+          styles.stepLabel,
+          { opacity: fadeAnim }, // Bind opacity to animation
+        ]}
+      >
+        {steps[currentStep]}
+      </Animated.Text>
+      <View style={styles.progressBarBackground}>
+        <Animated.View
+          style={[
+            styles.progressBarFill,
+            {
+              width: progressAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0%', '100%'],
+              }),
+            },
+          ]}
+        />
+      </View>
+    </View>
+  );
+
   const handleSignIn = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
 
-      if (error) throw error;
-      
+      // Start login process in parallel with animations
+      const loginPromise = (async () => {
+        // Simulate "Connecting"
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Simulate "Authenticating"
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+
+        // Simulate "Initializing"
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      })();
+
+      // Wait for login to complete
+      await loginPromise;
+
+      // Navigate to the next page after login completes
       router.replace('/');
       showToast('Successfully signed in', 'success');
     } catch (error) {
@@ -80,6 +290,7 @@ export default function SignIn() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {renderLogo()}
+      {renderProgressBar()}
       <View style={[styles.formContainer, { backgroundColor: colors.surface }]}>
         <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
         <Text style={[styles.subtitle, { color: colors.gray }]}>Sign in to continue chatting</Text>
@@ -88,12 +299,15 @@ export default function SignIn() {
           <Text style={styles.error}>{error}</Text>
         )}
 
-        <View style={styles.inputContainer}>
-          <Mail size={20} color="#666" style={styles.inputIcon} />
+        <View style={[styles.inputContainer, { borderColor: colors.border }]}>
+          <Mail size={20} color={colors.text} style={styles.inputIcon} />
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: colors.inputBackground, color: colors.text },
+            ]}
             placeholder="Email"
-            placeholderTextColor="#aaa"
+            placeholderTextColor={colors.gray}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -101,12 +315,15 @@ export default function SignIn() {
           />
         </View>
 
-        <View style={styles.inputContainer}>
-          <Lock size={20} color="#666" style={styles.inputIcon} />
+        <View style={[styles.inputContainer, { borderColor: colors.border }]}>
+          <Lock size={20} color={colors.text} style={styles.inputIcon} />
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: colors.inputBackground, color: colors.text },
+            ]}
             placeholder="Password"
-            placeholderTextColor="#aaa"
+            placeholderTextColor={colors.gray}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -124,7 +341,7 @@ export default function SignIn() {
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don't have an account? </Text>
           <Link href="/sign-up" style={styles.link}>
-            Sign Up
+            <Text style={styles.linkText}>Sign Up</Text>
           </Link>
         </View>
       </View>
@@ -132,95 +349,6 @@ export default function SignIn() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    marginBottom: 40,
-  },
-  logoLetter: {
-    fontSize: 48, // Increased font size
-    fontWeight: '900', // Bolder font weight
-    fontFamily: 'Inter-Bold', // Changed to a more appropriate font
-    color: 'green',
-    marginHorizontal: 4, // Slightly increased spacing
-  },
-  formContainer: {
-    padding: 20,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    width: '100%',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    marginBottom: 16,
-    padding: Platform.OS === 'ios' ? 12 : 4,
-  },
-  inputIcon: {
-    marginRight: 8,
-    marginLeft: 8,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-  },
-  button: {
-    backgroundColor: '#28A745', // Changed to green
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  footerText: {
-    color: '#666',
-  },
-  link: {
-    color: '#007BFF',
-    fontWeight: '600',
-  },
-  error: {
-    color: '#ff3b30',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-});
+export const screenOptions = {
+  headerShown: false, // Ensure the header is hidden
+};

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 export interface Chatroom {
   id: string;
   name: string;
+  province_id?: string; // Add province_id
   lastMessage?: {
     content: string;
     created_at: string;
@@ -22,12 +23,13 @@ export const useChatrooms = () => {
     return data.filter(chatroom => chatroom != null).map(chatroom => ({
       id: chatroom.id || '',
       name: chatroom.name || '',
+      province_id: chatroom.province_id || '', // Include province_id
       lastMessage: chatroom.messages?.[0] ? {
         content: chatroom.messages[0].content || '',
         created_at: chatroom.messages[0].created_at || new Date().toISOString(),
-        user: chatroom.messages[0].profiles ? {
-          username: chatroom.messages[0].profiles.username || '',
-          avatar_url: chatroom.messages[0].profiles.avatar_url || null
+        user: chatroom.messages[0].profiles?.[0] ? { // Ensure profiles is a single object
+          username: chatroom.messages[0].profiles[0].username || 'Unknown',
+          avatar_url: chatroom.messages[0].profiles[0].avatar_url || 'https://via.placeholder.com/50'
         } : undefined
       } : undefined
     }));
@@ -45,7 +47,9 @@ export const useChatrooms = () => {
       const { data, error } = await supabase
         .from('chatrooms')
         .select(`
-          *,
+          id,
+          name,
+          province_id, // Include province_id
           messages (
             id,
             content,

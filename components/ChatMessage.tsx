@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { View, Text, Image, StyleSheet, Animated, Pressable } from 'react-native';
 import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from '@/context/theme';
+import { avatarCache } from '@/lib/avatarCache';
 
 interface ChatMessageProps {
   content: string;
   sender: {
+    id: string;
     username: string;
     avatar_url: string | null;
   };
@@ -19,6 +21,10 @@ interface ChatMessageProps {
 
 export default function ChatMessage({ content, sender, timestamp, isOwnMessage, reactions, isRead, isPinned }: ChatMessageProps) {
   const { colors } = useTheme();
+  const avatarUrl = useMemo(() => 
+    sender.avatar_url || avatarCache.getAvatarUrl(sender.id, sender.username),
+    [sender]
+  );
 
   const styles = StyleSheet.create({
     container: {
@@ -31,13 +37,15 @@ export default function ChatMessage({ content, sender, timestamp, isOwnMessage, 
       justifyContent: 'flex-end',
     },
     avatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       marginRight: 8,
+      alignSelf: 'flex-start', // Ensure the avatar aligns with the top of the message
     },
     messageContent: {
       maxWidth: '75%',
+      flex: 1,
     },
     ownMessageContent: {
       alignItems: 'flex-end',
@@ -47,6 +55,7 @@ export default function ChatMessage({ content, sender, timestamp, isOwnMessage, 
       color: '#666',
       marginBottom: 4,
       marginLeft: 4,
+      fontWeight: 'bold',
     },
     bubble: {
       backgroundColor: colors.messageOther,
@@ -63,6 +72,7 @@ export default function ChatMessage({ content, sender, timestamp, isOwnMessage, 
     text: {
       fontSize: 16,
       color: colors.textOther,
+      marginTop: 4,
     },
     ownText: {
       color: colors.textOwn,
@@ -89,11 +99,9 @@ export default function ChatMessage({ content, sender, timestamp, isOwnMessage, 
 
   return (
     <Animated.View style={[styles.container, isOwnMessage && styles.ownMessageContainer]}>
-      {!isOwnMessage && (
+      {!isOwnMessage && ( // Render avatar only for other users
         <Image
-          source={{
-            uri: sender.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3'
-          }}
+          source={{ uri: avatarUrl }}
           style={styles.avatar}
         />
       )}

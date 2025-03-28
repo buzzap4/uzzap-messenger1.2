@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, StyleSheet, StyleProp, ImageStyle } from 'react-native';
+import { DEFAULT_AVATAR_URL, FALLBACK_AVATAR_URL } from '@/lib/constants';
 
 interface AvatarProps {
   uri?: string | null;
@@ -9,11 +10,24 @@ interface AvatarProps {
 }
 
 export default function Avatar({ uri, username, size = 40, style }: AvatarProps) {
-  const fallbackUri = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username || 'default'}&backgroundColor=random`;
+  const [hasError, setHasError] = useState(false);
+  
+  const getAvatarUrl = () => {
+    if (!hasError && uri) return uri;
+    
+    // First fallback - DiceBear Avataaars with username seed
+    const primaryFallback = `${DEFAULT_AVATAR_URL}?seed=${username || 'default'}&backgroundColor=random`;
+    
+    // Second fallback - DiceBear Initials
+    const secondaryFallback = `${FALLBACK_AVATAR_URL}?seed=${username || 'anonymous'}`;
+    
+    return hasError ? secondaryFallback : primaryFallback;
+  };
   
   return (
     <Image
-      source={{ uri: uri || fallbackUri }}
+      source={{ uri: getAvatarUrl() }}
+      onError={() => setHasError(true)}
       style={[
         styles.avatar,
         { width: size, height: size, borderRadius: size / 2 },
@@ -25,6 +39,7 @@ export default function Avatar({ uri, username, size = 40, style }: AvatarProps)
 
 const styles = StyleSheet.create({
   avatar: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f5f5f5', // Fallback background color
+    alignSelf: 'center',        // Center the avatar horizontally
   },
 });

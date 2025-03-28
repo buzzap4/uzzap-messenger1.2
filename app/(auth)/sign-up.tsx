@@ -1,9 +1,76 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Animated } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link, router } from 'expo-router'; // Add 'router' to the import
 import { supabase } from '@/lib/supabase';
 import { createProfile } from '@/src/services/profileService';
 import { useTheme } from '@/context/theme';
+
+const useDynamicStyles = (colors: any) =>
+  StyleSheet.create({
+    input: {
+      width: '100%',
+      padding: 15,
+      borderRadius: 8,
+      marginVertical: 10,
+      fontSize: 16,
+      borderWidth: 1,
+      borderColor: colors.border, // Adjust border color dynamically
+      color: colors.text, // Adjust text color dynamically
+      backgroundColor: colors.inputBackground, // Adjust background color dynamically
+    },
+    inputIcon: {
+      marginRight: 8,
+      color: colors.text, // Adjust icon color dynamically
+    },
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+      backgroundColor: '#f9f9f9',
+    },
+    logoContainer: {
+      flexDirection: 'row',
+      marginBottom: 40,
+    },
+    logoLetter: {
+      fontSize: 48, // Increased font size
+      fontWeight: '900', // Bolder font weight
+      fontFamily: 'Inter-Bold', // Changed to a more appropriate font
+      color: 'green',
+      marginHorizontal: 4, // Slightly increased spacing
+    },
+    button: {
+      width: '100%',
+      padding: 15,
+      backgroundColor: '#28A745', // Changed to green
+      borderRadius: 8,
+      alignItems: 'center',
+      marginVertical: 10,
+    },
+    buttonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    link: {
+      marginTop: 20,
+    },
+    linkText: {
+      color: '#28A745', // Match button color
+      fontSize: 14,
+    },
+    error: {
+      color: '#ff3b30',
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      marginBottom: 20,
+    },
+  });
 
 export default function SignUp() {
   const [email, setEmail] = useState('');
@@ -14,6 +81,7 @@ export default function SignUp() {
 
   const animatedValues = useRef([...Array(5)].map(() => new Animated.Value(0))).current; // 5 letters in "Uzzap"
   const { colors } = useTheme();
+  const styles = useDynamicStyles(colors);
 
   useEffect(() => {
     Animated.stagger(100, animatedValues.map(anim =>
@@ -81,31 +149,17 @@ export default function SignUp() {
         password,
       });
 
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: { username: username },
-      });
-      if (updateError) throw updateError;
-
       if (signUpError) throw signUpError;
       if (!user) throw new Error('Signup failed - no user returned');
 
-      // Create profile using the createProfile function
-      const { error: profileError } = await createProfile({
-        id: user.id,
-        username,
-        display_name: username,
-        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-      });
+      // Inform the user to verify their email
+      Alert.alert(
+        'Verify Your Email',
+        'A verification email has been sent to your email address. Please verify your email before logging in.'
+      );
 
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-        // If profile creation fails, clean up the auth user
-        await supabase.auth.signOut();
-        throw new Error('Failed to create profile');
-      }
-
-      // Success - navigate to home
-      router.replace('/');
+      // Optionally, navigate to the sign-in page
+      router.replace('/sign-in');
     } catch (error) {
       console.error('Sign up error:', error);
       if (error instanceof Error) {
@@ -128,26 +182,35 @@ export default function SignUp() {
       )}
       <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { backgroundColor: colors.inputBackground, color: colors.text },
+        ]}
         placeholder="Username"
-        placeholderTextColor="#aaa"
+        placeholderTextColor={colors.gray}
         value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
       />
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { backgroundColor: colors.inputBackground, color: colors.text },
+        ]}
         placeholder="Email"
-        placeholderTextColor="#aaa"
+        placeholderTextColor={colors.gray}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
       />
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { backgroundColor: colors.inputBackground, color: colors.text },
+        ]}
         placeholder="Password"
-        placeholderTextColor="#aaa"
+        placeholderTextColor={colors.gray}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
@@ -162,63 +225,6 @@ export default function SignUp() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f9f9f9',
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    marginBottom: 40,
-  },
-  logoLetter: {
-    fontSize: 48, // Increased font size
-    fontWeight: '900', // Bolder font weight
-    fontFamily: 'Inter-Bold', // Changed to a more appropriate font
-    color: 'green',
-    marginHorizontal: 4, // Slightly increased spacing
-  },
-  input: {
-    width: '100%',
-    padding: 15,
-    marginVertical: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    fontSize: 16,
-  },
-  button: {
-    width: '100%',
-    padding: 15,
-    backgroundColor: '#28A745', // Changed to green
-    borderRadius: 8,
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  link: {
-    marginTop: 20,
-  },
-  linkText: {
-    color: '#007BFF',
-    fontSize: 14,
-  },
-  error: {
-    color: '#ff3b30',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-});
+export const screenOptions = {
+  headerShown: false, // Ensure the header is hidden
+};

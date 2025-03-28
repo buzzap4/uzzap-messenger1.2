@@ -1,71 +1,75 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { avatarCache } from '@/lib/avatarCache';
+import { Profile, ApiResponse } from '@/src/types/models';
 
-export interface Profile {
-  id: string;
-  username: string;
-  display_name: string;
-  avatar_url: string | null;
-  status_message: string | null;
-}
+export function useProfile() {
+  const [state, setState] = useState<{
+    profile: Profile | null;
+    loading: boolean;
+    error: string | null;
+  }>({
+    profile: null,
+    loading: false,
+    error: null
+  });
 
-export const useProfile = (chatroomId: string) => {
-  const [sending, setSending] = useState(false);
-
-  const createProfileIfNotExists = async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string): Promise<ApiResponse<Profile>> => {
     try {
-      const { data, error } = await supabase
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      
+      const { data, error: fetchError } = await supabase
         .from('profiles')
-        .select()
+        .select('*')
         .eq('id', userId)
-        .maybeSingle();
+        .single();
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
 
-      if (!data) {
-        await supabase.from('profiles').insert([
-          {
-            id: userId,
-            username: `user_${userId.slice(0, 8)}`,
-            display_name: 'New User',
-            avatar_url: null,
-            status_message: null
-          }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error checking/creating profile:', error);
-      throw error;
+      const profile = data ? {
+        ...data,
+        avatar_url: data.avatar_url ?? avatarCache.getAvatarUrl(data.id, data.username)
+      } : null;
+
+      setState(prev => ({ ...prev, profile, loading: false }));
+      return { data: profile, error: null };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : 'Failed to fetch profile';
+      setState(prev => ({ ...prev, error, loading: false }));
+      return { data: null, error: { code: 'FETCH_ERROR', message: error } };
     }
-  };
+  }, []);
 
-  const handleSend = async (message: string) => {
-    if (sending) return;
-    setSending(true);
+  const createProfile = useCallback(async (userId: string, username: string): Promise<ApiResponse<Profile>> => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) throw new Error('Not authenticated');
+      setState(prev => ({ ...prev, loading: true, error: null }));
 
-      await createProfileIfNotExists(session.user.id);
+      const defaultProfile = {
+        id: userId,
+        username,
+        avatar_url: avatarCache.getAvatarUrl(userId, username)
+      };
 
-      const { error } = await supabase
-        .from('messages')
-        .insert([
-          {
-            content: message,
-            user_id: session.user.id,
-            chatroom_id: chatroomId
-          }
-        ]);
+      const { data, error: createError } = await supabase
+        .from('profiles')
+        .insert([defaultProfile])
+        .select()
+        .single();
 
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error sending message:', error);
-      throw error;
-    } finally {
-      setSending(false);
+      if (createError) throw createError;
+
+      setState(prev => ({ ...prev, profile: data, loading: false }));
+      return { data, error: null };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : 'Failed to create profile';
+      setState(prev => ({ ...prev, error, loading: false }));
+      return { data: null, error: { code: 'CREATE_ERROR', message: error } };
     }
-  };
+  }, []);
 
-  return { handleSend, sending };
-};
+  return {
+    ...state,
+    fetchProfile,
+    createProfile
+  };
+}

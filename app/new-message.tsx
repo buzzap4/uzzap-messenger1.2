@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Search, ArrowLeft } from 'lucide-react-native';
 import { useAuth } from '@/context/auth';
+import { DEFAULT_AVATAR_URL } from '@/lib/constants';
 
 interface User {
   id: string;
@@ -24,13 +25,17 @@ export default function NewMessageScreen() {
   const [users, setUsers] = useState<User[]>([]);
 
   const fetchUsers = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, username, avatar_url')
-      .limit(20);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .limit(20);
 
-    if (!error && data) {
-      setUsers(data);
+      if (error) throw error;
+
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
     }
   }, []);
 
@@ -62,7 +67,6 @@ export default function NewMessageScreen() {
     try {
       if (!session?.user) return;
 
-      // Check if conversation already exists using parameterized query
       const { data: existingConvo, error: fetchError } = await supabase
         .from('conversations')
         .select('id')
@@ -77,7 +81,6 @@ export default function NewMessageScreen() {
         return;
       }
 
-      // Create new conversation with explicit values
       const { data: newConvo, error: insertError } = await supabase
         .from('conversations')
         .insert({
@@ -88,12 +91,10 @@ export default function NewMessageScreen() {
         .single();
 
       if (insertError) throw insertError;
-      if (newConvo) {
-        router.push(`/direct-message/${newConvo.id}`);
-      }
+
+      router.push(`/direct-message/${newConvo.id}`);
     } catch (error) {
-      console.error('Error creating conversation:', error);
-      // You might want to show an error message to the user here
+      console.error('Error starting conversation:', error);
     }
   };
 
@@ -123,7 +124,7 @@ export default function NewMessageScreen() {
           >
             <Image
               source={{
-                uri: item.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800'
+                uri: item.avatar_url || `${DEFAULT_AVATAR_URL}?seed=${item.username}`
               }}
               style={styles.avatar}
             />

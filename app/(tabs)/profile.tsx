@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal, TextInput } from 'react-native';
 import { useAuth } from '@/context/auth';
 import { MessageCircle, Users, Clock, Camera } from 'lucide-react-native';
 import { createProfile, getProfile, updateProfile } from '@/src/services/profileService';
 import { useTheme } from '@/context/theme';
+import { handleError, getErrorMessage } from '@/lib/errorHandler';
+import { ERROR_MESSAGES } from '@/lib/constants';
 
 interface Profile {
   id: string;
@@ -15,6 +17,8 @@ interface Profile {
   last_seen: string;
 }
 
+const DICEBEAR_STYLES = ['avataaars', 'micah', 'bottts', 'gridy', 'identicon', 'adventurer'];
+
 export default function ProfileScreen() {
   const { session } = useAuth();
   const { colors } = useTheme();
@@ -24,6 +28,10 @@ export default function ProfileScreen() {
   const [avatarOptions, setAvatarOptions] = useState<string[]>([]);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isPromptVisible, setIsPromptVisible] = useState(false);
+  const [promptField, setPromptField] = useState<keyof Profile | null>(null);
+  const [promptValue, setPromptValue] = useState('');
+  const [promptTitle, setPromptTitle] = useState('');
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -60,71 +68,43 @@ export default function ProfileScreen() {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile,session?.user]);
-  const handleProfileUpdate = async (updates: Partial<Profile>) => {    
+
+  const handleProfileUpdate = async (updates: Partial<Profile>) => {
     try {
       setLoading(true);
-      if (!session?.user?.id) return;      
+      if (!session?.user?.id || !profile) return;
 
-      // Convert updates to match the expected types
-      const sanitizedUpdates: Partial<Profile> = {
-        display_name: updates.display_name || null,
-        status_message: updates.status_message || null,
-        avatar_url: updates.avatar_url || null,
-        username: updates.username,
-      };
-      
-      const { error: updateError } = await updateProfile(session.user.id, sanitizedUpdates);
-      if (updateError) throw updateError;
-      
-      await fetchProfile();      
-      Alert.alert('Success', 'Profile updated successfully');      
+      const { error } = await updateProfile(session.user.id, updates);
+      if (error) throw error;
+
+      setProfile({ ...profile, ...updates });
     } catch (error) {
-      console.error('Profile update error:', error);      
-      Alert.alert('Error', 'Failed to update profile');      
-    } finally {      
+      const { message } = handleError(error);
+      Alert.alert('Error', message);
+    } finally {
       setLoading(false);
     }
   };
 
-  const promptDisplayNameUpdate = () => {
-    Alert.prompt(
-      'Update Display Name',
-      'Enter your new display name',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Update',
-          onPress: (value) => {
-            if (value) handleProfileUpdate({ display_name: value });
-          }
-        }
-      ],
-      'plain-text',
-      profile?.display_name || ''
-    );
+  const openPrompt = (field: keyof Profile, title: string, placeholder: string) => {
+    setPromptField(field);
+    setPromptTitle(title);
+    setPromptValue(profile?.[field] || placeholder);
+    setIsPromptVisible(true);
   };
 
-  const promptStatusUpdate = () => {
-    Alert.prompt(
-      'Update Status',
-      'Enter your new status',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Update',
-          onPress: (value) => {
-            if (value) handleProfileUpdate({ status_message: value });
-          }
-        }
-      ],
-      'plain-text',
-      profile?.status_message || ''
-    );    
+  const handlePromptSubmit = () => {
+    if (promptField) {
+      handleProfileUpdate({ [promptField]: promptValue });
+    }
+    setIsPromptVisible(false);
   };
-  
+
   const fetchAvatars = async () => {
     const seeds = Array.from({ length: 5 }, () => Math.random().toString(36).substring(7));
-    const avatars = seeds.map(seed => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`);
+    const avatars = DICEBEAR_STYLES.flatMap(style =>
+      seeds.map(seed => `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`)
+    );
     setAvatarOptions(avatars);
   };
 
@@ -133,9 +113,15 @@ export default function ProfileScreen() {
     setShowAvatarModal(true);
   };
 
-  const handleAvatarSelect = (avatar: string) => {
-    setSelectedAvatar(avatar);
-    setShowAvatarModal(false);
+  const handleAvatarSelect = async (avatar: string) => {
+    try {
+      setSelectedAvatar(avatar);
+      setShowAvatarModal(false);
+      await handleProfileUpdate({ avatar_url: avatar });
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      Alert.alert('Error', errorMessage);
+    }
   };
 
   if (loading) {
@@ -155,75 +141,100 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { 
-        backgroundColor: colors.surface,
-        borderBottomColor: colors.border
-      }]}>
-        <TouchableOpacity onPress={handleAvatarClick} style={styles.avatarContainer}>
-          <Image
-            source={{
-              uri: selectedAvatar || profile?.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback'
-            }}
-            style={styles.avatar}
-          />
-          <View style={styles.cameraButton}>
-            <Camera size={20} color="#fff" />
-          </View>
-        </TouchableOpacity>        
-        <TouchableOpacity onPress={promptDisplayNameUpdate}>
-          <Text style={[styles.displayName, { color: colors.text }]}>
-            {profile?.display_name || profile?.username}
-          </Text>
-        </TouchableOpacity>
-        <Text style={[styles.username, { color: colors.gray }]}>@{profile?.username}</Text>
-        <TouchableOpacity
-          onPress={promptStatusUpdate}          
-        >
-          <Text style={[styles.status, { color: colors.gray }]}>
-            {profile?.status_message || 'Tap to set a status'}
-          </Text>
-        </TouchableOpacity>
-        <Text style={[styles.joinedDate, { color: colors.gray }]}>
-          Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : ''}
-        </Text>
-      </View>
-
-      <View style={[styles.stats, { borderBottomColor: colors.border }]}>
-        <View style={styles.statItem}>
-          <MessageCircle size={24} color={colors.gray} />
-          <Text style={[styles.statNumber, { color: colors.text }]}>128</Text>
-          <Text style={[styles.statLabel, { color: colors.gray }]}>Messages</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Users size={24} color={colors.gray} />
-          <Text style={[styles.statNumber, { color: colors.text }]}>12</Text>
-          <Text style={[styles.statLabel, { color: colors.gray }]}>Rooms</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Clock size={24} color={colors.gray} />
-          <Text style={[styles.statNumber, { color: colors.text }]}>45h</Text>
-          <Text style={[styles.statLabel, { color: colors.gray }]}>Active</Text>
-        </View>
-      </View>
-
-      {/* Avatar Selection Modal */}
-      <Modal visible={showAvatarModal} onRequestClose={() => setShowAvatarModal(false)}>
-        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.modalTitle, { color: colors.text }]}>Select an Avatar</Text>
-          <View style={styles.avatarOptions}>
-            {avatarOptions.map((avatar, index) => (
-              <TouchableOpacity key={index} onPress={() => handleAvatarSelect(avatar)}>
-                <Image source={{ uri: avatar }} style={styles.avatarOption} />
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity onPress={() => setShowAvatarModal(false)} style={styles.modalButton}>
-            <Text style={styles.modalButtonText}>Cancel</Text>
+    <>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { 
+          backgroundColor: colors.surface,
+          borderBottomColor: colors.border
+        }]}>
+          <TouchableOpacity onPress={handleAvatarClick} style={styles.avatarContainer}>
+            <Image
+              source={{
+                uri: selectedAvatar || profile?.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback'
+              }}
+              style={styles.avatar}
+            />
+            <View style={styles.cameraButton}>
+              <Camera size={20} color="#fff" />
+            </View>
+          </TouchableOpacity>        
+          <TouchableOpacity onPress={() => openPrompt('display_name', 'Update Display Name', 'Display Name')}>
+            <Text style={[styles.displayName, { color: colors.text }]}>
+              {profile?.display_name || profile?.username}
+            </Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => openPrompt('username', 'Update Username', 'Username')}>
+            <Text style={[styles.username, { color: colors.gray }]}>@{profile?.username}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => openPrompt('status_message', 'Update Status Message', 'Status Message')}>
+            <Text style={[styles.status, { color: colors.gray }]}>
+              {profile?.status_message || 'Tap to set a status'}
+            </Text>
+          </TouchableOpacity>
+          <Text style={[styles.joinedDate, { color: colors.gray }]}>
+            Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : ''}
+          </Text>
+        </View>
+
+        <View style={[styles.stats, { borderBottomColor: colors.border }]}>
+          <View style={styles.statItem}>
+            <MessageCircle size={24} color={colors.gray} />
+            <Text style={[styles.statNumber, { color: colors.text }]}>128</Text>
+            <Text style={[styles.statLabel, { color: colors.gray }]}>Messages</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Users size={24} color={colors.gray} />
+            <Text style={[styles.statNumber, { color: colors.text }]}>12</Text>
+            <Text style={[styles.statLabel, { color: colors.gray }]}>Rooms</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Clock size={24} color={colors.gray} />
+            <Text style={[styles.statNumber, { color: colors.text }]}>45h</Text>
+            <Text style={[styles.statLabel, { color: colors.gray }]}>Time Spent</Text>
+          </View>
+        </View>
+
+        {/* Avatar Selection Modal */}
+        <Modal visible={showAvatarModal} onRequestClose={() => setShowAvatarModal(false)}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Select an Avatar</Text>
+            <ScrollView contentContainerStyle={styles.avatarOptions}>
+              {avatarOptions.map((avatar, index) => (
+                <TouchableOpacity key={index} onPress={() => handleAvatarSelect(avatar)}>
+                  <Image source={{ uri: avatar }} style={styles.avatarOption} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity onPress={() => setShowAvatarModal(false)} style={styles.modalButton}>
+              <Text style={styles.modalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      </ScrollView>
+
+      {/* Custom Prompt Modal */}
+      <Modal visible={isPromptVisible} transparent={true} animationType="fade">
+        <View style={styles.promptOverlay}>
+          <View style={styles.promptContainer}>
+            <Text style={styles.promptTitle}>{promptTitle}</Text>
+            <TextInput
+              style={styles.promptInput}
+              value={promptValue}
+              onChangeText={setPromptValue}
+              placeholder="Enter value"
+            />
+            <View style={styles.promptButtons}>
+              <TouchableOpacity onPress={() => setIsPromptVisible(false)} style={styles.promptButton}>
+                <Text style={styles.promptButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handlePromptSubmit} style={styles.promptButton}>
+                <Text style={styles.promptButtonText}>Update</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
-    </ScrollView>
+    </>
   );
 };
 
@@ -244,12 +255,15 @@ const styles = StyleSheet.create({
   avatarContainer: {
     position: 'relative',
     alignSelf: 'center',
+    justifyContent: 'center', // Center the avatar vertically
+    alignItems: 'center',    // Center the avatar horizontally
   },
   avatar: {
     width: 120,
     height: 120,
     borderRadius: 60,
     marginBottom: 16,
+    backgroundColor: '#f5f5f5', // Add fallback background color
   },
   cameraButton: {
     position: 'absolute',
@@ -273,12 +287,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   status: {
-    fontSize: 14,
+    fontSize: 16,
     marginTop: 8,
   },
   joinedDate: {
-    fontSize: 12,
-    marginTop: 8,
+    fontSize: 14,
+    marginTop: 4,
   },
   stats: {
     flexDirection: 'row',
@@ -288,15 +302,16 @@ const styles = StyleSheet.create({
   },
   statItem: {
     alignItems: 'center',
+    marginHorizontal: 16,
   },
   statNumber: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginTop: 8,
+    marginTop: 4,
   },
   statLabel: {
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 14,
+    color: '#666',
   },
   errorText: {
     color: '#ff3b30',
@@ -331,6 +346,49 @@ const styles = StyleSheet.create({
   },
   modalButtonText: {
     color: '#FFF',
+    fontSize: 16,
+  },
+  promptOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  promptContainer: {
+    width: '80%',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+  },
+  promptTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  promptInput: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 20,
+  },
+  promptButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  promptButton: {
+    flex: 1,
+    padding: 10,
+    marginHorizontal: 5,
+    backgroundColor: '#007BFF',
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  promptButtonText: {
+    color: '#fff',
     fontSize: 16,
   },
 });

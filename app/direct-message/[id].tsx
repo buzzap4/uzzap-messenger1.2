@@ -14,6 +14,9 @@ interface Message {
   created_at: string;
   sender_id: string;
   receiver_id: string;
+  conversation_id?: string; // Add conversation_id
+  is_read?: boolean; // Add is_read
+  read_at?: string | null; // Add read_at
   sender?: {
     id: string;
     username: string;
@@ -34,61 +37,65 @@ export default function DirectMessageScreen() {
   
   const fetchMessages = useCallback(async () => {
     try {
-      const PAGE_SIZE = 30;
-      
       const { data, error } = await supabase
         .from('direct_messages')
         .select(`
-          id,
-          content,
-          created_at,
-          sender_id,
-          receiver_id,
-          sender:profiles!sender_id(id, username, avatar_url),
-          receiver:profiles!receiver_id(id, username, avatar_url)
+          *,
+          sender:profiles!sender_id (
+            id,
+            username,
+            avatar_url
+          ),
+          receiver:profiles!receiver_id (
+            id,
+            username,
+            avatar_url
+          )
         `)
-        .or(`sender_id.eq.${session?.user.id},receiver_id.eq.${session?.user.id}`)
-        .order('created_at', { ascending: false })
-        .range(0, PAGE_SIZE - 1);
+        .eq('conversation_id', id)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const transformedData = data?.map((msg: any) => ({
+      const transformedMessages = data?.map(msg => ({
         id: msg.id,
         content: msg.content,
         created_at: msg.created_at,
         sender_id: msg.sender_id,
         receiver_id: msg.receiver_id,
-        sender: Array.isArray(msg.sender) ? msg.sender[0] : msg.sender,
-        receiver: Array.isArray(msg.receiver) ? msg.receiver[0] : msg.receiver
-      })) as Message[];
+        is_read: msg.is_read,
+        read_at: msg.read_at,
+        sender: msg.sender,
+        receiver: msg.receiver
+      }));
 
-      setMessages(transformedData || []);
-    } catch (err) {
-      console.error('Error fetching messages:', err);
+      setMessages(transformedMessages || []);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
     }
-  }, [session?.user.id]);
+  }, [id]);
 
   const subscribeToMessages = useCallback(() => {
-      const subscription = supabase
-        .channel('direct_messages')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'direct_messages',
-            filter: `conversation_id=eq.${id}`,
-          },
-          (payload) => {
-              setMessages((current) => [payload.new as DirectMessage, ...current]);
-          }
-        )
-      
-      return () => {
-        supabase.removeChannel(subscription)
-        subscription.unsubscribe();
-      };
+    const subscription = supabase
+      .channel('direct_messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `conversation_id=eq.${id}`,
+        },
+        (payload) => {
+          const newMessage = payload.new as Message;
+          setMessages((current) => [newMessage, ...current]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }, [id]);
 
   useEffect(() => {
@@ -110,6 +117,7 @@ export default function DirectMessageScreen() {
           conversation_id: id,
           content,
           sender_id: session.user.id,
+          is_read: false, // Default to false
         })
         .select(`
           id, 
@@ -117,7 +125,18 @@ export default function DirectMessageScreen() {
           created_at,
           sender_id,
           receiver_id,
-          sender:profiles!sender_id(id, username, avatar_url)
+          is_read,
+          read_at,
+          sender:profiles!sender_id (
+            id,
+            username,
+            avatar_url
+          ),
+          receiver:profiles!receiver_id (
+            id,
+            username,
+            avatar_url
+          )
         `)
         .single();
 
@@ -129,7 +148,10 @@ export default function DirectMessageScreen() {
         created_at: message.created_at,
         sender_id: message.sender_id,
         receiver_id: message.receiver_id,
-        sender: Array.isArray(message.sender) ? message.sender[0] : message.sender
+        is_read: message.is_read,
+        read_at: message.read_at,
+        sender: Array.isArray(message.sender) ? message.sender[0] : message.sender, // Ensure sender is a single object
+        receiver: Array.isArray(message.receiver) ? message.receiver[0] : message.receiver // Ensure receiver is a single object
       };
 
       setMessages(current => [newMessage, ...current]);

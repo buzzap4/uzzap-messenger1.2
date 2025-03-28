@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 export const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_ANON_KEY || ''
+  process.env.EXPO_PUBLIC_SUPABASE_URL || '', // Updated to match /lib/supabase.ts
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '' // Updated to match /lib/supabase.ts
 );
 
 export const storageConfig = {
@@ -17,8 +17,10 @@ export const ensureBucketExists = async (bucketName: string): Promise<boolean> =
       .getBucket(bucketName);
 
     if (error) {
-      if (error.message === 'The resource was not found') {
+      if (error.message.includes('The resource was not found')) { // Check the error message
         console.log(`Bucket "${bucketName}" not found. Creating it...`);
+        // Buckets are created with public access to allow public file sharing.
+        // Ensure this aligns with your application's security requirements.
         const { error: createError } = await supabase.storage.createBucket(bucketName, { public: true });
         if (createError) throw createError;
         console.log(`Bucket "${bucketName}" created successfully.`);

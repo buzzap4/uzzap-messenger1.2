@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import FloatingActionButton from '@/components/FloatingActionButton';
@@ -7,16 +7,19 @@ import RegionDropdown from '@/components/RegionDropdown';
 import { MapPin, MessageCircle, Users } from 'lucide-react-native';
 import { Region } from '@/types/Region';
 import { useTheme } from '@/context/theme';
+import { useAuth } from '@/context/auth';
 
 export default function RoomsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { session } = useAuth();
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
 
   useEffect(() => {
+    console.log('Initializing RoomsScreen...');
     fetchRegions();
   }, []);
 
@@ -89,7 +92,14 @@ export default function RoomsScreen() {
           <TouchableOpacity
             key={province.id}
             style={styles.provinceItem}
-            onPress={() => router.push(`/chatroom/${province.chatrooms[0]?.id}`)}
+            onPress={() => {
+              const chatroomId = province.chatrooms?.[0]?.id;
+              if (chatroomId) {
+                router.push(`/chatroom/${chatroomId}`);
+              } else {
+                Alert.alert('Error', `No chatroom found for the province: ${province.name}.`);
+              }
+            }}
           >
             <View style={styles.provinceIconContainer}>
               <MapPin size={24} color="#007AFF" />

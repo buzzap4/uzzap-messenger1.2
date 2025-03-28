@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchUserRole } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { useRouter, useSegments } from 'expo-router';
 
 interface AuthContextType {
   session: Session | null;
+  userRole: string | undefined; // Add a separate state for user role
   loading: boolean;
   signOut: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
@@ -12,6 +13,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   session: null,
+  userRole: undefined,
   loading: true,
   signOut: async () => {},
   completeOnboarding: async () => {},
@@ -19,48 +21,41 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [userRole, setUserRole] = useState<string | undefined>(undefined); // Separate state for role
   const [loading, setLoading] = useState(true);
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    // Check current session
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+    const fetchSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
       if (error) {
         console.error('Session check error:', error);
         return;
       }
 
-      setSession(session);
-
       if (session) {
-        try {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          if (profileError) throw profileError;
-
-          // Only redirect to onboarding if we're sure there's no profile
-          if (!profile && !window.location.pathname.includes('/onboarding')) {
-            router.replace('/onboarding');
-          }
-        } catch (error) {
-          console.error('Profile check error:', error);
-        }
+        setSession(session);
+        const role = await fetchUserRole(session.user.id);
+        setUserRole(role || undefined); // Handle null by setting undefined
       }
 
       setLoading(false);
-    });
+    };
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    fetchSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
+        setSession(session);
+        const role = await fetchUserRole(session.user.id);
+        setUserRole(role || undefined); // Handle null by setting undefined
+      } else {
+        setSession(null);
+        setUserRole(undefined);
+      }
       setLoading(false);
-      
-      // Redirect based on auth state
+
       if (!session) {
         router.replace('/sign-in');
       }
@@ -77,10 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isAuthScreen = ['sign-in', 'sign-up'].includes(segments[segments.length - 1] || '');
 
     if (!session && !isAuthScreen) {
-      // Not logged in, redirect to sign in except for auth screens
       router.replace('/sign-in');
     } else if (session && isAuthScreen) {
-      // Logged in but on auth screen, redirect to home
       router.replace('/');
     }
   }, [session, loading, segments, router]);
@@ -95,17 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const completeOnboarding = async () => {
-    // You could store additional onboarding state in the profiles table if needed
     router.replace('/');
   };
 
   if (loading) {
-    // You can return a loading screen here
     return null;
   }
 
   return (
-    <AuthContext.Provider value={{ session, loading, signOut, completeOnboarding }}>
+    <AuthContext.Provider value={{ session, userRole, loading, signOut, completeOnboarding }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { Modal, View, TouchableOpacity, Text, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 
@@ -8,6 +8,23 @@ interface FileUploadModalProps {
   onClose: () => void;
   onUploadComplete: (url: string) => void;
 }
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+
+const validateFile = (uri: string, fileInfo: any): boolean => {
+  if (fileInfo.size > MAX_FILE_SIZE) {
+    Alert.alert('Error', 'File size must be less than 5MB');
+    return false;
+  }
+
+  if (!ALLOWED_TYPES.includes(fileInfo.type)) {
+    Alert.alert('Error', 'Only JPEG, PNG and GIF files are allowed');
+    return false;
+  }
+
+  return true;
+};
 
 export function FileUploadModal({ visible, onClose, onUploadComplete }: FileUploadModalProps) {
   const [uploading, setUploading] = React.useState(false);
@@ -20,6 +37,9 @@ export function FileUploadModal({ visible, onClose, onUploadComplete }: FileUplo
     });
 
     if (!result.canceled && result.assets[0].uri) {
+      if (!validateFile(result.assets[0].uri, result.assets[0])) {
+        return;
+      }
       try {
         setUploading(true);
         const uri = result.assets[0].uri;

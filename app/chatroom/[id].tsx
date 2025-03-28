@@ -1,36 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { FlatList, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { FlatList, StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Text } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
 import { useTheme } from '@/context/theme';
 import ChatMessage from '@/components/ChatMessage';
 import MessageInput from '@/components/MessageInput';
-
-interface Profile {
-  id: string;
-  username: string;
-  avatar_url: string | null;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  created_at: string;
-  profiles: Profile;
-}
-
-interface DatabaseMessage {
-  id: string;
-  content: string;
-  created_at: string;
-  user_id: string;
-  profiles: {
-    id: string;
-    username: string;
-    avatar_url: string | null;
-  }[];  // Change this to an array type
-}
+import { useProfile } from '@/src/hooks/useProfile';
+import { useMessages } from '@/src/hooks/useMessages';
+import { Message, Profile } from '@/src/types/models';
 
 const createProfileIfNotExists = async (userId: string) => {
   try {
@@ -66,126 +44,61 @@ export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuth();
   const { colors } = useTheme();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const flatListRef = useRef<FlatList>(null);
+  const { profile, loading: profileLoading, fetchProfile, error: profileError } = useProfile();
+  const { messages, loading: messagesLoading, hasMore, error: messagesError, fetchMessages } = useMessages(id as string);
+  const flatListRef = useRef<FlatList<Message>>(null);
 
   useEffect(() => {
-    fetchMessages();
-    subscribeToMessages();
-  }, [id]);
+    if (session?.user?.id) {
+      fetchProfile(session.user.id);
+    }
+  }, [session?.user?.id, fetchProfile]);
 
-  const fetchMessages = async () => {
+  const handleSend = async (content: string) => {
+    if (!session?.user?.id || !profile?.id) return;
+    
     try {
-      const { data, error } = await supabase
+      const { error: messageError } = await supabase
         .from('messages')
-        .select(`
-          id,
+        .insert({
+          chatroom_id: id,
           content,
-          created_at,
-          user_id,
-          profiles (
-            id,
-            username,
-            avatar_url
-          )
-        `)
-        .eq('chatroom_id', id!)
-        .order('created_at', { ascending: false })
-        .limit(50);
+          user_id: session.user.id,
+        });
 
-      if (error) throw error;
-      
-      // Safer transformation with null checks
-      const transformedMessages = (data as DatabaseMessage[] || []).map(msg => ({
-        id: msg.id,
-        content: msg.content,
-        created_at: msg.created_at,
-        profiles: msg.profiles ? {
-          id: msg.user_id,  // Use user_id directly instead of profiles array
-          username: msg.profiles[0]?.username || 'Unknown User',
-          avatar_url: msg.profiles[0]?.avatar_url || null
-        } : {
-          id: msg.user_id,
-          username: 'Unknown User',
-          avatar_url: null
-        }
-      }));
-      
-      setMessages(transformedMessages);
+      if (messageError) throw messageError;
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message');
     }
   };
 
-  const subscribeToMessages = () => {
-    const subscription = supabase
-      .channel('messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `chatroom_id=eq.${id!}`,
-        },
-        (payload) => {
-          const newMessage = payload.new as Message;
-          setMessages((current) => [newMessage, ...current]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
+  const fetchMoreMessages = async () => {
+    if (!hasMore || messagesLoading) return;
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage) {
+      await fetchMessages(lastMessage.id);
+    }
   };
 
-  const handleSend = async (content: string) => {
-    if (!session) {
-        Alert.alert('Error', 'Please sign in to send messages');
-        return;
-      }
-    if(session){
-    try {
-        // Create or get profile first
-        const profile = await createProfileIfNotExists(session.user.id);
-        if (!profile) {
-          Alert.alert('Error', 'Unable to create profile');
-          return;
-        }
+  const renderItem = ({ item }: { item: Message }) => (
+    <ChatMessage
+      content={item.content}
+      sender={item.user ?? { 
+        id: item.user_id,
+        username: 'Unknown',
+        avatar_url: null
+      }}
+      timestamp={item.created_at}
+      isOwnMessage={item.user_id === session?.user?.id}
+    />
+  );
 
-        // Then send message
-        const { data: message, error: messageError } = await supabase
-          .from('messages')
-          .insert({
-            chatroom_id: id,
-            content,
-            user_id: session.user.id
-          })
-          .select('id, content, created_at')
-          .single();
-
-        if (messageError) throw messageError;
-
-        // Construct message with profile data we already have
-        const newMessage = {
-          id: message.id,
-          content: message.content,
-          created_at: message.created_at,
-          profiles: {
-            id: profile.id,
-            username: profile.username,
-            avatar_url: profile.avatar_url
-          }
-        };
-
-        setMessages(current => [newMessage, ...current]);
-      } catch (error) {
-        console.error('Error sending message:', error);
-        Alert.alert('Error', 'Failed to send message');
-      }
-    };
+  if (messagesError) {
+    return <Text style={styles.errorText}>{messagesError}</Text>;
   }
+
+  const loading = profileLoading || messagesLoading;
 
   return (
     <KeyboardAvoidingView
@@ -196,19 +109,14 @@ export default function ChatRoomScreen() {
       <FlatList
         ref={flatListRef}
         data={messages}
-        inverted
-        renderItem={({ item }) => (
-          <ChatMessage
-            content={item.content}
-            sender={item.profiles}
-            timestamp={item.created_at}
-            isOwnMessage={item.profiles.id === session?.user.id}
-          />
-        )}
+        renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messageList}
+        onEndReached={fetchMoreMessages}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={loading ? <ActivityIndicator /> : null}
+        inverted
       />
-      <MessageInput onSend={handleSend} />
+      <MessageInput onSend={handleSend} disabled={!profile || loading} />
     </KeyboardAvoidingView>
   );
 }
@@ -219,5 +127,25 @@ const styles = StyleSheet.create({
   },
   messageList: {
     paddingVertical: 16,
+  },
+  ownMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#4CAF50',
+    borderRadius: 16,
+    padding: 10,
+    marginVertical: 4,
+  },
+  otherMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E0E0E0',
+    borderRadius: 16,
+    padding: 10,
+    marginVertical: 4,
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 16,
   },
 });
