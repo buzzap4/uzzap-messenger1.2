@@ -29,7 +29,7 @@ export const useChatrooms = () => {
         created_at: chatroom.messages[0].created_at || new Date().toISOString(),
         user: chatroom.messages[0].profiles?.[0] ? { // Ensure profiles is a single object
           username: chatroom.messages[0].profiles[0].username || 'Unknown',
-          avatar_url: chatroom.messages[0].profiles[0].avatar_url || 'https://via.placeholder.com/50'
+          avatar_url: chatroom.messages[0].profiles[0].avatar_url || 'https://api.dicebear.com/7.x/initials/svg?background=0D8ABC&bold=true'
         } : undefined
       } : undefined
     }));

@@ -1,61 +1,31 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabase, handleDatabaseError } from '@/lib/supabase';
+import type { Database } from '@/src/types/database';
 
-export interface CreateProfileParams {
-  id: string;
-  username: string;
-  display_name?: string;
-  avatar_url?: string;
-}
+type Profile = Database['public']['Tables']['profiles']['Row'];
+type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
 
-export const createProfile = async (params: CreateProfileParams) => {
+export const createProfile = async (profileData: ProfileInsert) => {
   try {
-    // Validate required fields
-    if (!params.id || !params.username) {
-      throw new Error('id and username are required');
-    }
-
-    // Validate username length and format
-    if (params.username.length < 3 || params.username.length > 30) {
-      throw new Error('Username must be between 3 and 30 characters');
-    }
-    if (!/^[a-zA-Z0-9_]+$/.test(params.username)) {
-      throw new Error('Username can only contain letters, numbers and underscores');
-    }
-
-    // Create new profile with additional validation
-    const profileData = {
-      id: params.id,
-      username: params.username,
-      display_name: params.display_name || params.username,
-      avatar_url: params.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${params.username}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      role: 'user'
-    };
-
     const { data, error } = await supabase
       .from('profiles')
-      .insert([profileData])
-      .select('*')
+      .insert([{
+        ...profileData,
+        role: profileData.role || 'user', // Ensure role is set
+      }])
+      .select()
       .single();
 
     if (error) {
-      if (error.code === '23505') { // Unique violation
-        throw new Error('Username already taken');
-      }
-      throw error;
-    }
-
-    if (!data) {
-      throw new Error('Failed to create profile');
+      const errorMessage = handleDatabaseError(error);
+      throw new Error(errorMessage || 'Failed to create profile');
     }
 
     return { data, error: null };
   } catch (error) {
     console.error('Error in createProfile:', error);
-    return { 
-      data: null, 
-      error: error instanceof Error ? error : new Error('Unknown error occurred') 
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error('Unknown error occurred')
     };
   }
 };
