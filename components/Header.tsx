@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Image, StyleSheet } from 'react-native';
+import { useTheme } from '@/context/theme';
 
 export default function Header() {
+  const { colors } = useTheme();
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { backgroundColor: colors.primary }]}>
       <Image source={require('@/assets/images/favicon.png')} style={styles.favicon} />
     </View>
   );
@@ -12,7 +14,6 @@ export default function Header() {
 const styles = StyleSheet.create({
   header: {
     height: 60,
-    backgroundColor: 'green', // Changed to green
     justifyContent: 'center',
     alignItems: 'center',
     borderBottomWidth: 1,

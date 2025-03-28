@@ -3,6 +3,7 @@ import { FlatList, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'rea
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
+import { useTheme } from '@/context/theme';
 import ChatMessage from '@/components/ChatMessage';
 import MessageInput from '@/components/MessageInput';
 
@@ -64,6 +65,7 @@ const createProfileIfNotExists = async (userId: string) => {
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuth();
+  const { colors } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const flatListRef = useRef<FlatList>(null);
 
@@ -187,7 +189,7 @@ export default function ChatRoomScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
@@ -214,7 +216,6 @@ export default function ChatRoomScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   messageList: {
     paddingVertical: 16,

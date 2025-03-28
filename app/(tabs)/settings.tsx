@@ -1,39 +1,95 @@
-import React from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { useTheme } from '@/context/theme';
 import { Bell, Moon, Sun, Globe, Lock, Shield, HelpCircle, LogOut } from 'lucide-react-native';
 import { useAuth } from '@/context/auth';
+import { supabase } from '@/lib/supabase'; // Ensure you have a Supabase client setup
+import { useRouter } from 'expo-router'; // Import router for navigation
 
 export default function SettingsScreen() {
   const { setTheme, isDark, colors } = useTheme();
   const { signOut } = useAuth();
-  
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [helpCenterVisible, setHelpCenterVisible] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const fetchNotificationPreference = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session?.user) throw new Error('Failed to fetch session or user');
+
+        const { data, error } = await supabase
+          .from('user_preferences')
+          .select('notifications_enabled')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (error) throw error;
+        setNotificationsEnabled(data?.notifications_enabled || false);
+      } catch (err) {
+        console.error('Error fetching notification preference:', err);
+      }
+    };
+
+    fetchNotificationPreference();
+  }, []);
+
+  const toggleNotifications = async (value: boolean) => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.user) throw new Error('Failed to fetch session or user');
+
+      setNotificationsEnabled(value);
+      const { error } = await supabase
+        .from('user_preferences')
+        .upsert({
+          user_id: session.user.id,
+          notifications_enabled: value,
+        });
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error updating notification preference:', err);
+    }
+  };
+
   const toggleTheme = () => {
     setTheme(isDark ? 'light' : 'dark');
+  };
+
+  const navigateToPrivacySettings = () => {
+    router.push('/privacy-settings'); // Navigate to the Privacy Settings screen
+  };
+
+  const navigateToBlockedUsers = () => {
+    router.push('/blocked-users'); // Navigate to the Blocked Users screen
   };
 
   const styles = StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: colors.background,
+      paddingHorizontal: 16, // Add padding for better spacing
     },
     section: {
-      paddingVertical: 16,
+      paddingVertical: 20, // Increase padding for better spacing
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
+      marginBottom: 16, // Add margin between sections
     },
     sectionTitle: {
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: '700', // Make section titles bold
       color: colors.gray,
-      marginBottom: 8,
-      paddingHorizontal: 16,
+      marginBottom: 12,
       textTransform: 'uppercase',
+      letterSpacing: 1, // Add letter spacing for better readability
     },
     settingItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 16,
+      paddingVertical: 12, // Add vertical padding for better touch targets
     },
     settingIcon: {
       marginRight: 16,
@@ -50,24 +106,65 @@ export default function SettingsScreen() {
     settingDescription: {
       fontSize: 14,
       color: colors.gray,
+      lineHeight: 20, // Add line height for better readability
     },
     actionText: {
       fontSize: 16,
       color: colors.primary,
+      fontWeight: '500', // Add weight for emphasis
     },
     actionButton: {
       fontSize: 16,
       color: colors.primary,
-      fontWeight: '600',
+      fontWeight: '700', // Make buttons bold
     },
     version: {
       textAlign: 'center',
       color: colors.gray,
       padding: 20,
       fontSize: 14,
+      fontStyle: 'italic', // Add a subtle style for version text
     },
     error: {
       color: '#ff3b30',
+      fontWeight: '600', // Make error messages bold
+    },
+    modalContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContent: {
+      width: '90%',
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      padding: 20,
+      alignItems: 'center',
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 16,
+    },
+    modalText: {
+      fontSize: 14,
+      color: colors.gray,
+      textAlign: 'center',
+      marginBottom: 16,
+    },
+    closeButton: {
+      marginTop: 16,
+      backgroundColor: colors.primary,
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 8,
+    },
+    closeButtonText: {
+      color: colors.background,
+      fontWeight: '600',
+      fontSize: 16,
     },
   });
 
@@ -111,7 +208,10 @@ export default function SettingsScreen() {
           <Bell size={24} color={colors.gray} />,
           'Push Notifications',
           'Get notified about new messages',
-          <Switch value={true} onValueChange={() => {}} />
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={toggleNotifications}
+          />
         )}
       </View>
 
@@ -121,7 +221,7 @@ export default function SettingsScreen() {
           <Lock size={24} color={colors.gray} />,
           'Privacy Settings',
           'Manage your privacy preferences',
-          <TouchableOpacity>
+          <TouchableOpacity onPress={navigateToPrivacySettings}>
             <Text style={styles.actionButton}>Manage</Text>
           </TouchableOpacity>
         )}
@@ -129,7 +229,7 @@ export default function SettingsScreen() {
           <Shield size={24} color={colors.gray} />,
           'Blocked Users',
           'Manage blocked users',
-          <TouchableOpacity>
+          <TouchableOpacity onPress={navigateToBlockedUsers}>
             <Text style={styles.actionButton}>View</Text>
           </TouchableOpacity>
         )}
@@ -141,7 +241,7 @@ export default function SettingsScreen() {
           <HelpCircle size={24} color={colors.gray} />,
           'Help Center',
           'Get help and contact support',
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => setHelpCenterVisible(true)}>
             <Text style={styles.actionButton}>Open</Text>
           </TouchableOpacity>
         )}
@@ -160,6 +260,37 @@ export default function SettingsScreen() {
       </View>
 
       <Text style={styles.version}>Version 1.0.0</Text>
+
+      <Modal
+        visible={helpCenterVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setHelpCenterVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Help Center</Text>
+            <Text style={styles.modalText}>
+              Welcome to the Uzzap Messenger Help Center. If you have any questions or need assistance, feel free to contact us.
+            </Text>
+            <Text style={styles.modalText}>
+              <Text style={{ fontWeight: '700' }}>Creator:</Text> Uzzap Cy
+            </Text>
+            <Text style={styles.modalText}>
+              <Text style={{ fontWeight: '700' }}>License:</Text> MIT License
+            </Text>
+            <Text style={styles.modalText}>
+              <Text style={{ fontWeight: '700' }}>Version:</Text> 1.0.0
+            </Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setHelpCenterVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

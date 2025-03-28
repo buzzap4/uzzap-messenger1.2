@@ -6,9 +6,11 @@ import FloatingActionButton from '@/components/FloatingActionButton';
 import RegionDropdown from '@/components/RegionDropdown';
 import { MapPin, MessageCircle, Users } from 'lucide-react-native';
 import { Region } from '@/types/Region';
+import { useTheme } from '@/context/theme';
 
 export default function RoomsScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,9 +73,9 @@ export default function RoomsScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Chat Rooms</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Chat Rooms</Text>
         <RegionDropdown
           regions={regions}
           selectedRegion={selectedRegion}
@@ -126,7 +128,6 @@ export default function RoomsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   centerContainer: {
     flex: 1,
@@ -136,13 +137,10 @@ const styles = StyleSheet.create({
   header: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
-    backgroundColor: '#fff',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
   },
   subtitle: {
     fontSize: 14,

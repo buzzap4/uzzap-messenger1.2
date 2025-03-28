@@ -3,6 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, A
 import { Link, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock } from 'lucide-react-native';
+import { useToast } from '@/context/toast';
+import { useTheme } from '@/context/theme';
 
 export default function SignIn() {
   const [email, setEmail] = useState('');
@@ -10,6 +12,8 @@ export default function SignIn() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const animatedValues = useRef([...Array(5)].map(() => new Animated.Value(0))).current; // 5 letters in "Uzzap"
+  const { showToast } = useToast();
+  const { colors } = useTheme();
 
   useEffect(() => {
     Animated.stagger(100, animatedValues.map(anim =>
@@ -63,25 +67,22 @@ export default function SignIn() {
       if (error) throw error;
       
       router.replace('/');
+      showToast('Successfully signed in', 'success');
     } catch (error) {
-      if (error instanceof Error) {
-        Alert.alert('Error', error.message);
-      } else if (typeof error === 'string') {
-        Alert.alert('Error', error);
-      } else {
-        Alert.alert('Error', 'An unknown error occurred');
-      }
+      const message = error instanceof Error ? error.message : 'An unknown error occurred';
+      showToast(message, 'error');
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {renderLogo()}
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Sign in to continue chatting</Text>
+      <View style={[styles.formContainer, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
+        <Text style={[styles.subtitle, { color: colors.gray }]}>Sign in to continue chatting</Text>
 
         {error && (
           <Text style={styles.error}>{error}</Text>
@@ -134,7 +135,6 @@ export default function SignIn() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -151,7 +151,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 4, // Slightly increased spacing
   },
   formContainer: {
-    backgroundColor: '#fff',
     padding: 20,
     borderRadius: 12,
     shadowColor: '#000',
@@ -169,11 +168,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
-    color: '#333',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
     marginBottom: 24,
     textAlign: 'center',
   },

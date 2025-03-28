@@ -3,7 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityInd
 import { Link, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { createProfile } from '@/src/services/profileService';
- 
+import { useTheme } from '@/context/theme';
+
 export default function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -12,6 +13,7 @@ export default function SignUp() {
   const [error, setError] = useState<string | null>(null);
 
   const animatedValues = useRef([...Array(5)].map(() => new Animated.Value(0))).current; // 5 letters in "Uzzap"
+  const { colors } = useTheme();
 
   useEffect(() => {
     Animated.stagger(100, animatedValues.map(anim =>
@@ -119,11 +121,12 @@ export default function SignUp() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {renderLogo()}
       {error && (
         <Text style={styles.error}>{error}</Text>
       )}
+      <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
       <TextInput
         style={styles.input}
         placeholder="Username"
@@ -212,5 +215,10 @@ const styles = StyleSheet.create({
     color: '#ff3b30',
     marginBottom: 16,
     textAlign: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
   },
 });

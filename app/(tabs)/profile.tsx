@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
 import { useAuth } from '@/context/auth';
 import { MessageCircle, Users, Clock, Camera } from 'lucide-react-native';
-import { createProfile, getProfile, updateProfile } from '@/src/services/profileService'; 
+import { createProfile, getProfile, updateProfile } from '@/src/services/profileService';
+import { useTheme } from '@/context/theme';
 
 interface Profile {
   id: string;
@@ -16,6 +17,7 @@ interface Profile {
 
 export default function ProfileScreen() {
   const { session } = useAuth();
+  const { colors } = useTheme();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
@@ -153,8 +155,11 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { 
+        backgroundColor: colors.surface,
+        borderBottomColor: colors.border
+      }]}>
         <TouchableOpacity onPress={handleAvatarClick} style={styles.avatarContainer}>
           <Image
             source={{
@@ -167,41 +172,45 @@ export default function ProfileScreen() {
           </View>
         </TouchableOpacity>        
         <TouchableOpacity onPress={promptDisplayNameUpdate}>
-          <Text style={styles.displayName}>{profile?.display_name || profile?.username}</Text>
+          <Text style={[styles.displayName, { color: colors.text }]}>
+            {profile?.display_name || profile?.username}
+          </Text>
         </TouchableOpacity>
-        <Text style={styles.username}>@{profile?.username}</Text>
+        <Text style={[styles.username, { color: colors.gray }]}>@{profile?.username}</Text>
         <TouchableOpacity
           onPress={promptStatusUpdate}          
         >
-          <Text style={styles.status}>{profile?.status_message || 'Tap to set a status'}</Text>
+          <Text style={[styles.status, { color: colors.gray }]}>
+            {profile?.status_message || 'Tap to set a status'}
+          </Text>
         </TouchableOpacity>
-        <Text style={styles.joinedDate}>
+        <Text style={[styles.joinedDate, { color: colors.gray }]}>
           Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : ''}
         </Text>
       </View>
 
-      <View style={styles.stats}>
+      <View style={[styles.stats, { borderBottomColor: colors.border }]}>
         <View style={styles.statItem}>
-          <MessageCircle size={24} color="#666" />
-          <Text style={styles.statNumber}>128</Text>
-          <Text style={styles.statLabel}>Messages</Text>
+          <MessageCircle size={24} color={colors.gray} />
+          <Text style={[styles.statNumber, { color: colors.text }]}>128</Text>
+          <Text style={[styles.statLabel, { color: colors.gray }]}>Messages</Text>
         </View>
         <View style={styles.statItem}>
-          <Users size={24} color="#666" />
-          <Text style={styles.statNumber}>12</Text>
-          <Text style={styles.statLabel}>Rooms</Text>
+          <Users size={24} color={colors.gray} />
+          <Text style={[styles.statNumber, { color: colors.text }]}>12</Text>
+          <Text style={[styles.statLabel, { color: colors.gray }]}>Rooms</Text>
         </View>
         <View style={styles.statItem}>
-          <Clock size={24} color="#666" />
-          <Text style={styles.statNumber}>45h</Text>
-          <Text style={styles.statLabel}>Active</Text>
+          <Clock size={24} color={colors.gray} />
+          <Text style={[styles.statNumber, { color: colors.text }]}>45h</Text>
+          <Text style={[styles.statLabel, { color: colors.gray }]}>Active</Text>
         </View>
       </View>
 
       {/* Avatar Selection Modal */}
       <Modal visible={showAvatarModal} onRequestClose={() => setShowAvatarModal(false)}>
-        <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Select an Avatar</Text>
+        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>Select an Avatar</Text>
           <View style={styles.avatarOptions}>
             {avatarOptions.map((avatar, index) => (
               <TouchableOpacity key={index} onPress={() => handleAvatarSelect(avatar)}>
@@ -221,7 +230,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   centerContainer: {
     flex: 1,
@@ -232,7 +240,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
   },
   avatarContainer: {
     position: 'relative',
@@ -260,21 +267,17 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
   },
   username: {
     fontSize: 16,
-    color: '#666',
     marginTop: 4,
   },
   status: {
     fontSize: 14,
-    color: '#999',
     marginTop: 8,
   },
   joinedDate: {
     fontSize: 12,
-    color: '#999',
     marginTop: 8,
   },
   stats: {
@@ -282,7 +285,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
   },
   statItem: {
     alignItems: 'center',
@@ -290,12 +292,10 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
     marginTop: 8,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
     marginTop: 4,
   },
   errorText: {
@@ -306,7 +306,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalTitle: {
     fontSize: 18,

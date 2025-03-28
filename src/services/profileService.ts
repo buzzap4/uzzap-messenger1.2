@@ -14,25 +14,12 @@ export const createProfile = async (params: CreateProfileParams) => {
       throw new Error('id and username are required');
     }
 
-    // Get the authenticated user with proper error handling
-    const { data: authData, error: authError } = await supabase.auth.getSession();
-    if (authError) throw new Error('Authentication error: ' + authError.message);
-    if (!authData.session) throw new Error('No active session');
-
-    // Check if profile already exists with better error handling
-    const { data: existingProfile, error: checkError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', params.id)
-      .maybeSingle();
-
-    if (checkError) {
-      console.error('Error checking existing profile:', checkError);
-      throw new Error('Failed to check existing profile: ' + checkError.message);
+    // Validate username length and format
+    if (params.username.length < 3 || params.username.length > 30) {
+      throw new Error('Username must be between 3 and 30 characters');
     }
-
-    if (existingProfile) {
-      return { data: existingProfile, error: null };
+    if (!/^[a-zA-Z0-9_]+$/.test(params.username)) {
+      throw new Error('Username can only contain letters, numbers and underscores');
     }
 
     // Create new profile with additional validation
@@ -43,21 +30,27 @@ export const createProfile = async (params: CreateProfileParams) => {
       avatar_url: params.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${params.username}`,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      role: 'user' // Add default role
+      role: 'user'
     };
 
-    const { data: newProfile, error: insertError } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .insert([profileData])
-      .select()
+      .select('*')
       .single();
 
-    if (insertError) {
-      console.error('Error creating profile:', insertError);
-      throw new Error('Failed to create profile: ' + insertError.message);
+    if (error) {
+      if (error.code === '23505') { // Unique violation
+        throw new Error('Username already taken');
+      }
+      throw error;
     }
 
-    return { data: newProfile, error: null };
+    if (!data) {
+      throw new Error('Failed to create profile');
+    }
+
+    return { data, error: null };
   } catch (error) {
     console.error('Error in createProfile:', error);
     return { 

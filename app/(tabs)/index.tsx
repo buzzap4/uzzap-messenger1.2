@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import Avatar from '@/components/Avatar';
+import { useTheme } from '@/context/theme';
 
 interface ChatroomWithMessages {
   id: string;
@@ -18,6 +19,7 @@ interface ChatroomWithMessages {
 }
 
 export default function ChatsScreen() {
+  const { colors } = useTheme();
   const [loading, setLoading] = useState(true);
   const [chatrooms, setChatrooms] = useState<ChatroomWithMessages[]>([]);
   const router = useRouter();
@@ -65,7 +67,7 @@ export default function ChatsScreen() {
 
   const renderItem = ({ item }: { item: ChatroomWithMessages }) => (
     <TouchableOpacity
-      style={styles.chatItem}
+      style={[styles.chatItem, { backgroundColor: colors.surface }]}
       onPress={() => router.push(`/chatroom/${item.id}`)}
     >
       <Avatar
@@ -76,13 +78,13 @@ export default function ChatsScreen() {
       />
       <View style={styles.chatInfo}>
         <View style={styles.chatHeader}>
-          <Text style={styles.chatName}>{item.name}</Text>
+          <Text style={[styles.chatName, { color: colors.text }]}>{item.name}</Text>
           <Text style={styles.timestamp}>
             {item.lastMessage ? new Date(item.lastMessage.created_at).toLocaleString() : ''}
           </Text>
         </View>
         <View style={styles.messageRow}>
-          <Text style={styles.lastMessage} numberOfLines={1}>
+          <Text style={[styles.lastMessage, { color: colors.gray }]} numberOfLines={1}>
             {item.lastMessage?.content || 'No messages yet'}
           </Text>
         </View>
@@ -99,9 +101,12 @@ export default function ChatsScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Chats</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { 
+        borderBottomColor: colors.border,
+        backgroundColor: colors.surface 
+      }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Chats</Text>
       </View>
       <FlatList
         data={chatrooms}
@@ -116,18 +121,14 @@ export default function ChatsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
-    backgroundColor: '#fff',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
   },
   listContainer: {
     padding: 16,
@@ -155,7 +156,6 @@ const styles = StyleSheet.create({
   chatName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
   },
   timestamp: {
     fontSize: 12,
@@ -168,7 +168,6 @@ const styles = StyleSheet.create({
   },
   lastMessage: {
     fontSize: 14,
-    color: '#666',
     flex: 1,
     marginRight: 8,
   },

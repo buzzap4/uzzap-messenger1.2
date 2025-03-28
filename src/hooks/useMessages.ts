@@ -33,26 +33,42 @@ export const useMessages = (chatroomId: string) => {
 
   const fetchMessages = useCallback(async () => {
     try {
+      const PAGE_SIZE = 50;
+      
       const { data, error } = await supabase
         .from('messages')
         .select(`
-          *,
-          profiles (username, avatar_url)
+          id,
+          content,
+          created_at,
+          user_id,
+          profiles!inner (
+            id, 
+            username,
+            avatar_url
+          )
         `)
         .eq('chatroom_id', chatroomId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, PAGE_SIZE - 1);
       
       if (error) {
         console.error('Error fetching messages:', error);
         return;
       }
+
+      // Validate message content length
+      const MAX_MESSAGE_LENGTH = 2000;
+      const validMessages = data?.filter(msg => 
+        msg.content && msg.content.length <= MAX_MESSAGE_LENGTH
+      ) || [];
       
-      setMessages(transformMessages(data || []));
+      setMessages(transformMessages(validMessages));
     } catch (error) {
       console.error('Error fetching messages:', error);
       setMessages([]);
     }
-  },[chatroomId]);
+  }, [chatroomId]);
 
   useEffect(() => {
     if (chatroomId) {

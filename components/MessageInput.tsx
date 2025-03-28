@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { Send, Image as ImageIcon, Smile } from 'lucide-react-native';
 import { useTheme } from '@/context/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { FileUploadModal } from './FileUploadModal';
+import { EmojiPickerModal } from './EmojiPickerModal';
 
 interface MessageInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, type?: 'text' | 'image') => void;
   onImageSelect?: () => void;
 }
 
@@ -12,6 +15,8 @@ export default function MessageInput({ onSend, onImageSelect }: MessageInputProp
   const [message, setMessage] = useState('');
   const { colors } = useTheme();
   const scale = new Animated.Value(1);
+  const [showFileModal, setShowFileModal] = useState(false);
+  const [showEmojiModal, setShowEmojiModal] = useState(false);
 
   const handleSend = () => {
     if (message.trim()) {
@@ -27,18 +32,31 @@ export default function MessageInput({ onSend, onImageSelect }: MessageInputProp
           useNativeDriver: true,
         }),
       ]).start(() => {
-        onSend(message.trim());
+        onSend(message.trim(), 'text');
         setMessage('');
       });
     }
   };
 
+  const handleFileUpload = (url: string) => {
+    onSend(url, 'image');
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setMessage(prev => prev + emoji);
+  };
+
   return (
     <View style={[styles.container, { borderTopColor: colors.border, backgroundColor: colors.surface }]}>
       <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
-        <TouchableOpacity style={styles.button} onPress={onImageSelect}>
-          <ImageIcon size={24} color={colors.gray} />
+        <TouchableOpacity onPress={() => setShowEmojiModal(true)} style={styles.icon}>
+          <Ionicons name="happy-outline" size={24} color="#666" />
         </TouchableOpacity>
+        
+        <TouchableOpacity onPress={() => setShowFileModal(true)} style={styles.icon}>
+          <Ionicons name="attach-outline" size={24} color="#666" />
+        </TouchableOpacity>
+
         <TextInput
           style={[styles.input, { color: colors.text }]}
           placeholder="Type a message..."
@@ -50,9 +68,6 @@ export default function MessageInput({ onSend, onImageSelect }: MessageInputProp
           returnKeyType="send"
           onSubmitEditing={handleSend}
         />
-        <TouchableOpacity style={styles.button}>
-          <Smile size={24} color={colors.gray} />
-        </TouchableOpacity>
       </View>
       <Animated.View style={{ transform: [{ scale }] }}>
         <TouchableOpacity
@@ -66,6 +81,18 @@ export default function MessageInput({ onSend, onImageSelect }: MessageInputProp
           <Send size={24} color="#fff" />
         </TouchableOpacity>
       </Animated.View>
+
+      <FileUploadModal
+        visible={showFileModal}
+        onClose={() => setShowFileModal(false)}
+        onUploadComplete={handleFileUpload}
+      />
+
+      <EmojiPickerModal
+        visible={showEmojiModal}
+        onClose={() => setShowEmojiModal(false)}
+        onEmojiSelect={handleEmojiSelect}
+      />
     </View>
   );
 }
@@ -113,5 +140,8 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: '#e5e5e5',
+  },
+  icon: {
+    padding: 5,
   },
 });

@@ -73,43 +73,24 @@ export default function OnboardingScreen() {
         return;
       }
 
-      const { data } = await createProfile({
-        
+      const { data, error } = await createProfile({
         id: session.user.id,
         username: username.trim(),
         display_name: displayName.trim(),
-        avatar_url: avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+        avatar_url: avatarUrl || undefined,
       });
 
-      let uploadError;
-      if(data?.error) {
-        uploadError = data?.error;
-        // Check for specific error types
-        if (uploadError.message.includes('username')) {
-          Alert.alert('Error', 'Username is already taken or invalid');
-        } else if (uploadError.message.includes('authentication')) {
-          Alert.alert('Error', 'Please sign in again');
-          await signOut();
-        }
-        return;
-      }
-
-      
-
-      if (!data?.data) {
-        throw new Error("No profile data returned");
-      }
+      if (error) throw error;
+      if (!data) throw new Error('Profile creation failed');
 
       await completeOnboarding();
       router.replace('/');
     } catch (err) {
       console.error('Onboarding error:', err);
       Alert.alert(
-          "Error",
-          err instanceof Error
-            ? err.message
-            : "Failed to complete onboarding"
-        );
+        'Error',
+        err instanceof Error ? err.message : 'Failed to complete onboarding'
+      );
     } finally {
       setLoading(false);
     }

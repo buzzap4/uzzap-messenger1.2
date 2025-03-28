@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Search, Plus, Loader2 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
+import { useTheme } from '@/context/theme';
 
 interface DirectMessage {
   id: string;
@@ -23,13 +24,13 @@ interface DirectMessage {
 }
 
 export default function DirectMessagesScreen() {
+  const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();  
   
   const fetchDirectMessages = useCallback(async () => {
-   
     try {
       const { data, error } = await supabase
         .from('direct_messages')
@@ -47,11 +48,14 @@ export default function DirectMessagesScreen() {
       if (error) throw error;
       
       // Transform the response to match our DirectMessage type
-      const transformedData = data?.map(msg => ({
-        ...msg,
-        sender: msg.sender[0], // Get first item since Supabase returns an array
+      const transformedData = (data?.map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        created_at: msg.created_at,
+        read_at: msg.read_at,
+        sender: msg.sender[0],
         receiver: msg.receiver[0]
-      })) || [];
+      })) || []);
       
       setMessages(transformedData);     
     } catch (err) {
@@ -114,18 +118,22 @@ export default function DirectMessagesScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Messages</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { 
+        borderBottomColor: colors.border,
+        backgroundColor: colors.surface
+      }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Messages</Text>
         <TouchableOpacity onPress={() => router.push('/new-message')}>
           <Plus size={24} color="#007AFF" />
         </TouchableOpacity>
       </View>
-      <View style={styles.searchContainer}>
-        <Search size={20} color="#666" style={styles.searchIcon} />
+      <View style={[styles.searchContainer, { backgroundColor: colors.surface }]}>
+        <Search size={20} color={colors.gray} style={styles.searchIcon} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: colors.text }]}
           placeholder="Search messages"
+          placeholderTextColor={colors.gray}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -143,7 +151,6 @@ export default function DirectMessagesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
@@ -151,18 +158,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#f5f5f5',
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 10,
@@ -173,7 +177,6 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
   },
   listContainer: {
     padding: 16,
@@ -215,7 +218,6 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
   },
   timestamp: {
     fontSize: 12,
@@ -228,7 +230,6 @@ const styles = StyleSheet.create({
   },
   lastMessage: {
     fontSize: 14,
-    color: '#666',
     flex: 1,
     marginRight: 8,
   },

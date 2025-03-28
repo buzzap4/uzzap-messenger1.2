@@ -5,6 +5,7 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useColorScheme } from 'react-native';
 import { ThemeProvider, useTheme } from '@/context/theme';
 import { AuthProvider } from '@/context/auth';
+import { ToastProvider } from '@/context/toast';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import Header from '@/components/Header';
@@ -51,8 +52,10 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <StackNavigator />
-        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+        <ToastProvider>
+          <StackNavigator />
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+        </ToastProvider>
       </AuthProvider>
     </ThemeProvider>
   );

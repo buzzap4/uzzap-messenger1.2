@@ -9,52 +9,65 @@ import { FlashList } from '@shopify/flash-list';
 import { DirectMessage } from '@/types';
 
 interface Message {
+  id: string;
+  content: string;
+  created_at: string;
+  sender_id: string;
+  receiver_id: string;
+  sender?: {
     id: string;
-    content: string;
-    created_at: string;
-    sender?: {
-      id: string;
-      username: string;
-      avatar_url: string | null;
-    };
-  }
+    username: string;
+    avatar_url: string | null;
+  };
+  receiver?: {
+    id: string;
+    username: string;
+    avatar_url: string | null;
+  };
+}
 
 export default function DirectMessageScreen() {
   const { id } = useLocalSearchParams();
   const { session } = useAuth();
-  const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const flatListRef = useRef(null);
   
   const fetchMessages = useCallback(async () => {
     try {
+      const PAGE_SIZE = 30;
+      
       const { data, error } = await supabase
         .from('direct_messages')
-        .select(
-          `
-            id,
-            content,
-            created_at,
-            sender:profiles(id, username, avatar_url)
-          `
-        )
-        .match({ conversation_id: id })
+        .select(`
+          id,
+          content,
+          created_at,
+          sender_id,
+          receiver_id,
+          sender:profiles!sender_id(id, username, avatar_url),
+          receiver:profiles!receiver_id(id, username, avatar_url)
+        `)
+        .or(`sender_id.eq.${session?.user.id},receiver_id.eq.${session?.user.id}`)
         .order('created_at', { ascending: false })
-        .limit(50);
-        
-        if (error) throw error;
-        if (data) {
-          const transformedMessages = data.map((message: any) => ({
-            ...message,
-            sender: message.sender[0],
-          }));
-        setMessages(transformedMessages
+        .range(0, PAGE_SIZE - 1);
 
-        );
-      }
+      if (error) throw error;
+
+      const transformedData = data?.map((msg: any) => ({
+        id: msg.id,
+        content: msg.content,
+        created_at: msg.created_at,
+        sender_id: msg.sender_id,
+        receiver_id: msg.receiver_id,
+        sender: Array.isArray(msg.sender) ? msg.sender[0] : msg.sender,
+        receiver: Array.isArray(msg.receiver) ? msg.receiver[0] : msg.receiver
+      })) as Message[];
+
+      setMessages(transformedData || []);
     } catch (err) {
       console.error('Error fetching messages:', err);
     }
-  }, [id]);
+  }, [session?.user.id]);
 
   const subscribeToMessages = useCallback(() => {
       const subscription = supabase
@@ -90,6 +103,7 @@ export default function DirectMessageScreen() {
         Alert.alert('Error', 'Please sign in to send messages');
         return;
       }
+
       const { data: message, error: messageError } = await supabase
         .from('direct_messages')
         .insert({
@@ -97,14 +111,28 @@ export default function DirectMessageScreen() {
           content,
           sender_id: session.user.id,
         })
-        .select(`id, content, created_at, sender:profiles(id, username, avatar_url)`)
+        .select(`
+          id, 
+          content, 
+          created_at,
+          sender_id,
+          receiver_id,
+          sender:profiles!sender_id(id, username, avatar_url)
+        `)
         .single();
-  
+
       if (messageError) throw messageError;
-      setMessages((current) => {
-            return [message, ...current]
-          });
-    
+
+      const newMessage: Message = {
+        id: message.id,
+        content: message.content,
+        created_at: message.created_at,
+        sender_id: message.sender_id,
+        receiver_id: message.receiver_id,
+        sender: Array.isArray(message.sender) ? message.sender[0] : message.sender
+      };
+
+      setMessages(current => [newMessage, ...current]);
     } catch (error) {
       console.error('Error sending message:', error);
       Alert.alert('Error', 'Failed to send message');
@@ -128,7 +156,6 @@ export default function DirectMessageScreen() {
 
   return (
     <KeyboardAvoidingView
-
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
