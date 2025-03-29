@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Image, Text, TouchableOpacity, StyleSheet, Platform, Modal, TextInput, Alert } from 'react-native';
+import { View, Image, Text, TouchableOpacity, StyleSheet, Platform, Modal, TextInput, Alert, StatusBar } from 'react-native';
 import { useTheme } from '@/context/theme';
 import { useNavigation, usePathname, router } from 'expo-router';
 import { ArrowLeft, Search, MoreVertical, X } from 'lucide-react-native';
@@ -185,8 +185,8 @@ export default function Header() {
 
 const styles = StyleSheet.create({
   header: {
-    height: Platform.OS === 'ios' ? 90 : 60,
-    paddingTop: Platform.OS === 'ios' ? 30 : 0,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 30, // Add padding for Android
+    height: Platform.OS === 'ios' ? 90 : 60 + (StatusBar.currentHeight || 0), // Adjust height for Android
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

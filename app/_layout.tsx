@@ -24,7 +24,7 @@ function StackNavigator() {
         }
       }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: true }} />
-      <Stack.Screen name="(auth)" options={{ headerShown: true }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} /> {/* Hide header for auth */}
     </Stack>
   );
 }

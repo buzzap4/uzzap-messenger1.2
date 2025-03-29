@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Animated, Image } from 'react-native';
 import { Link, router } from 'expo-router'; // Add 'router' to the import
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/context/theme';
@@ -69,6 +69,10 @@ const useDynamicStyles = (colors: any) =>
       fontWeight: 'bold',
       marginBottom: 20,
     },
+    logoImage: {
+      width: 450, // Further increased width
+      height: 180, // Further increased height
+    },
   });
 
 export default function SignUp() {
@@ -92,34 +96,15 @@ export default function SignUp() {
     )).start();
   }, [animatedValues]);
 
-  const renderLogo = () => {
-    const letters = ['U', 'z', 'z', 'a', 'p'];
-    return (
-      <View style={styles.logoContainer}>
-        {letters.map((letter, index) => (
-          <Animated.Text
-            key={index}
-            style={[
-              styles.logoLetter,
-              {
-                transform: [
-                  {
-                    translateY: animatedValues[index].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-50, 0], // Drop from -50 to 0
-                    }),
-                  },
-                ],
-                opacity: animatedValues[index],
-              },
-            ]}
-          >
-            {letter}
-          </Animated.Text>
-        ))}
-      </View>
-    );
-  };
+  const renderLogo = () => (
+    <View style={styles.logoContainer}>
+      <Image
+        source={require('../../assets/uzzap-logo.png')}
+        style={styles.logoImage}
+        resizeMode="contain"
+      />
+    </View>
+  );
 
   const handleSignUp = async () => {
     try {

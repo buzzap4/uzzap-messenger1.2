@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Animated, Image } from 'react-native';
 import { Link, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock } from 'lucide-react-native';
@@ -40,12 +40,9 @@ const useDynamicStyles = (colors: any) =>
       flexDirection: 'row',
       marginBottom: 40,
     },
-    logoLetter: {
-      fontSize: 48, // Increased font size
-      fontWeight: '900',
-      fontFamily: 'Poppins-Bold', // Updated font family
-      color: '#28A745', // Match button color
-      marginHorizontal: 4,
+    logoImage: {
+      width: 450, // Further increased width
+      height: 180, // Further increased height
     },
     formContainer: {
       padding: 20,
@@ -189,34 +186,15 @@ export default function SignIn() {
     animateSteps();
   }, [fadeAnim, progressAnim, steps.length]); // Added missing dependencies
 
-  const renderLogo = () => {
-    const letters = ['U', 'z', 'z', 'a', 'p'];
-    return (
-      <View style={styles.logoContainer}>
-        {letters.map((letter, index) => (
-          <Animated.Text
-            key={index}
-            style={[
-              styles.logoLetter,
-              {
-                transform: [
-                  {
-                    translateY: animatedValues[index].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-50, 0], // Drop from -50 to 0
-                    }),
-                  },
-                ],
-                opacity: animatedValues[index],
-              },
-            ]}
-          >
-            {letter}
-          </Animated.Text>
-        ))}
-      </View>
-    );
-  };
+  const renderLogo = () => (
+    <View style={styles.logoContainer}>
+      <Image
+        source={require('../../assets/uzzap-logo.png')}
+        style={styles.logoImage}
+        resizeMode="contain"
+      />
+    </View>
+  );
 
   const renderProgressBar = () => (
     <View style={styles.progressBarContainer}>
