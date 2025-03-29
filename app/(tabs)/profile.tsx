@@ -5,7 +5,6 @@ import { MessageCircle, Users, Clock, Camera } from 'lucide-react-native';
 import { createProfile, getProfile, updateProfile } from '@/src/services/profileService';
 import { useTheme } from '@/context/theme';
 import { handleError, getErrorMessage } from '@/lib/errorHandler';
-import { ERROR_MESSAGES } from '@/lib/constants';
 
 interface Profile {
   id: string;
@@ -13,11 +12,46 @@ interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   status_message: string | null;
+  role: 'user' | 'admin' | 'moderator';
   created_at: string;
-  last_seen: string;
+  updated_at: string;
+  last_seen: string | null;
 }
 
-const DICEBEAR_STYLES = ['avataaars', 'micah', 'bottts', 'gridy', 'identicon', 'adventurer'];
+const DICEBEAR_STYLES = [
+  'adventurer',
+  'adventurer-neutral',
+  'avataaars',
+  'avataaars-neutral',
+  'big-ears',
+  'big-ears-neutral',
+  'big-smile',
+  'bottts',
+  'bottts-neutral',
+  'croodles',
+  'croodles-neutral',
+  'fun-emoji',
+  'icons',
+  'identicon',
+  'initials',
+  'lorelei',
+  'lorelei-neutral',
+  'micah',
+  'miniavs',
+  'notionists',
+  'notionists-neutral',
+  'open-peeps',
+  'personas',
+  'pixel-art',
+  'pixel-art-neutral',
+  'shapes',
+  'thumbs'
+];
+
+interface AvatarOption {
+  url: string;
+  style: string;
+}
 
 export default function ProfileScreen() {
   const { session } = useAuth();
@@ -25,7 +59,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [avatarOptions, setAvatarOptions] = useState<string[]>([]);
+  const [avatarOptions, setAvatarOptions] = useState<AvatarOption[]>([]);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isPromptVisible, setIsPromptVisible] = useState(false);
@@ -36,34 +70,47 @@ export default function ProfileScreen() {
   const fetchProfile = useCallback(async () => {
     try {
       setLoading(true);
-      if (!session?.user) {
+      if (!session?.user?.id) {
         throw new Error('No authenticated user');        
       }
 
-      const { data } = await getProfile(session.user.id);
+      const { data, error: fetchError } = await getProfile(session.user.id);
+      if (fetchError) throw fetchError;
 
       if (!data) {
-        // Create default profile if none exists
+        // Create default profile with all required fields
         const defaultProfile = {
           id: session.user.id,
           username: `user_${session.user.id.slice(0, 8)}`,
           display_name: 'New User',
           avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.id}`,
+          status_message: null,
+          role: 'user' as const,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         };
 
         const { data: newProfile, error: createError } = await createProfile(defaultProfile);
-        if (createError) throw createError;
-        setProfile(newProfile);
+        if (createError) {
+          console.error('Profile creation error:', createError);
+          throw createError;
+        }
+        if (!newProfile) {
+          throw new Error('Failed to create profile: No profile data returned');
+        }
+        setProfile(newProfile as Profile);
       } else {
-        setProfile(data);
+        setProfile(data as Profile);
       }
     } catch (error) {
       console.error('Profile fetch error:', error);
-      setFetchError(error instanceof Error ? error.message : 'An unknown error occurred');
+      const message = error instanceof Error ? error.message : 'An unknown error occurred';
+      setFetchError(message);
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
-  },[session?.user]);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     fetchProfile();
@@ -101,10 +148,11 @@ export default function ProfileScreen() {
   };
 
   const fetchAvatars = async () => {
-    const seeds = Array.from({ length: 5 }, () => Math.random().toString(36).substring(7));
-    const avatars = DICEBEAR_STYLES.flatMap(style =>
-      seeds.map(seed => `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`)
-    );
+    const seed = Math.random().toString(36).substring(7);
+    const avatars: AvatarOption[] = DICEBEAR_STYLES.map(style => ({
+      url: `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`,
+      style: style
+    }));
     setAvatarOptions(avatars);
   };
 
@@ -113,11 +161,11 @@ export default function ProfileScreen() {
     setShowAvatarModal(true);
   };
 
-  const handleAvatarSelect = async (avatar: string) => {
+  const handleAvatarSelect = async (avatarUrl: string) => {
     try {
-      setSelectedAvatar(avatar);
+      setSelectedAvatar(avatarUrl);
       setShowAvatarModal(false);
-      await handleProfileUpdate({ avatar_url: avatar });
+      await handleProfileUpdate({ avatar_url: avatarUrl });
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       Alert.alert('Error', errorMessage);
@@ -200,13 +248,18 @@ export default function ProfileScreen() {
             <Text style={[styles.modalTitle, { color: colors.text }]}>Select an Avatar</Text>
             <ScrollView contentContainerStyle={styles.avatarOptions}>
               {avatarOptions.map((avatar, index) => (
-                <TouchableOpacity key={index} onPress={() => handleAvatarSelect(avatar)}>
-                  <Image source={{ uri: avatar }} style={styles.avatarOption} />
-                </TouchableOpacity>
+                <View key={index} style={styles.avatarOptionContainer}>
+                  <TouchableOpacity onPress={() => handleAvatarSelect(avatar.url)}>
+                    <Image source={{ uri: avatar.url }} style={styles.avatarOption} />
+                  </TouchableOpacity>
+                  <Text style={[styles.avatarStyleLabel, { color: colors.text }]}>
+                    {avatar.style.replace(/-/g, ' ')}
+                  </Text>
+                </View>
               ))}
             </ScrollView>
             <TouchableOpacity onPress={() => setShowAvatarModal(false)} style={styles.modalButton}>
-              <Text style={styles.modalButtonText}>Cancel</Text>
+              <Text style={styles.modalButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
         </Modal>
@@ -329,14 +382,25 @@ const styles = StyleSheet.create({
   },
   avatarOptions: {
     flexDirection: 'row',
-    justifyContent: 'center',
     flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    padding: 10,
+  },
+  avatarOptionContainer: {
+    alignItems: 'center',
+    margin: 8,
+    width: 100,
   },
   avatarOption: {
     width: 80,
     height: 80,
-    margin: 10,
     borderRadius: 40,
+    marginBottom: 8,
+  },
+  avatarStyleLabel: {
+    fontSize: 12,
+    textAlign: 'center',
+    textTransform: 'capitalize',
   },
   modalButton: {
     marginTop: 20,

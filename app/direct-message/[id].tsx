@@ -6,70 +6,54 @@ import { useAuth } from '@/context/auth';
 import ChatMessage from '@/components/ChatMessage';
 import MessageInput from '@/components/MessageInput';
 import { FlashList } from '@shopify/flash-list';
-import { DirectMessage } from '@/types';
-
-interface Message {
-  id: string;
-  content: string;
-  created_at: string;
-  sender_id: string;
-  receiver_id: string;
-  conversation_id?: string; // Add conversation_id
-  is_read?: boolean; // Add is_read
-  read_at?: string | null; // Add read_at
-  sender?: {
-    id: string;
-    username: string;
-    avatar_url: string | null;
-  };
-  receiver?: {
-    id: string;
-    username: string;
-    avatar_url: string | null;
-  };
-}
+import { DirectMessage } from '@/src/types/models';
 
 export default function DirectMessageScreen() {
   const { id } = useLocalSearchParams();
   const { session } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [otherUserId, setOtherUserId] = useState<string | null>(null);
   const flatListRef = useRef(null);
-  
+
+  // Add effect to fetch other user's ID
+  useEffect(() => {
+    const fetchOtherUser = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('user1_id, user2_id')
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
+
+        const otherId = data.user1_id === session?.user?.id ? data.user2_id : data.user1_id;
+        setOtherUserId(otherId);
+      } catch (error) {
+        console.error('Error fetching conversation:', error);
+      }
+    };
+
+    if (session?.user?.id) {
+      fetchOtherUser();
+    }
+  }, [id, session?.user?.id]);
+
   const fetchMessages = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('direct_messages')
         .select(`
           *,
-          sender:profiles!sender_id (
-            id,
-            username,
-            avatar_url
-          ),
-          receiver:profiles!receiver_id (
-            id,
-            username,
-            avatar_url
-          )
+          sender:profiles!sender_id(*),
+          receiver:profiles!receiver_id(*)
         `)
         .eq('conversation_id', id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const transformedMessages = data?.map(msg => ({
-        id: msg.id,
-        content: msg.content,
-        created_at: msg.created_at,
-        sender_id: msg.sender_id,
-        receiver_id: msg.receiver_id,
-        is_read: msg.is_read,
-        read_at: msg.read_at,
-        sender: msg.sender,
-        receiver: msg.receiver
-      }));
-
-      setMessages(transformedMessages || []);
+      setMessages(data || []);
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
@@ -87,7 +71,7 @@ export default function DirectMessageScreen() {
           filter: `conversation_id=eq.${id}`,
         },
         (payload) => {
-          const newMessage = payload.new as Message;
+          const newMessage = payload.new as DirectMessage;
           setMessages((current) => [newMessage, ...current]);
         }
       )
@@ -106,8 +90,21 @@ export default function DirectMessageScreen() {
 
   const handleSend = async (content: string) => {
     try {
-      if (!session?.user?.id) {
-        Alert.alert('Error', 'Please sign in to send messages');
+      if (!session?.user?.id || !otherUserId) {
+        Alert.alert('Error', 'Unable to send message');
+        return;
+      }
+
+      // First verify conversation exists and user is part of it
+      const { data: conversation, error: conversationError } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
+        .eq('id', id)
+        .single();
+
+      if (conversationError || !conversation) {
+        Alert.alert('Error', 'Invalid conversation');
         return;
       }
 
@@ -117,51 +114,28 @@ export default function DirectMessageScreen() {
           conversation_id: id,
           content,
           sender_id: session.user.id,
-          is_read: false, // Default to false
+          receiver_id: otherUserId,
         })
         .select(`
-          id, 
-          content, 
-          created_at,
-          sender_id,
-          receiver_id,
-          is_read,
-          read_at,
-          sender:profiles!sender_id (
-            id,
-            username,
-            avatar_url
-          ),
-          receiver:profiles!receiver_id (
-            id,
-            username,
-            avatar_url
-          )
+          *,
+          sender:profiles!sender_id(*),
+          receiver:profiles!receiver_id(*)
         `)
         .single();
 
-      if (messageError) throw messageError;
+      if (messageError) {
+        console.error('Message error:', messageError);
+        throw messageError;
+      }
 
-      const newMessage: Message = {
-        id: message.id,
-        content: message.content,
-        created_at: message.created_at,
-        sender_id: message.sender_id,
-        receiver_id: message.receiver_id,
-        is_read: message.is_read,
-        read_at: message.read_at,
-        sender: Array.isArray(message.sender) ? message.sender[0] : message.sender, // Ensure sender is a single object
-        receiver: Array.isArray(message.receiver) ? message.receiver[0] : message.receiver // Ensure receiver is a single object
-      };
-
-      setMessages(current => [newMessage, ...current]);
+      setMessages(current => [message, ...current]);
     } catch (error) {
       console.error('Error sending message:', error);
       Alert.alert('Error', 'Failed to send message');
     }
   };
   
-  const renderItem = ({ item }: { item: Message }) => {
+  const renderItem = ({ item }: { item: DirectMessage }) => {
     
     if (!item?.sender) {
       return null;

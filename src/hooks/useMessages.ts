@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { Message, DatabaseMessage, ApiResponse, Profile } from '@/src/types/models';
+import { supabase } from '@/lib/supabase';
+import { Message, User } from '../types/models';
 
 const PAGE_SIZE = 20;
 
@@ -17,53 +17,30 @@ export const useMessages = (chatroomId: string) => {
     error: null
   });
 
-  const transformMessages = useCallback((data: any[]): Message[] => {
-    return data?.map(message => ({
-      id: message.id,
-      content: message.content,
-      user_id: message.user_id,
-      chatroom_id: message.chatroom_id,
-      created_at: message.created_at,
-      is_edited: message.is_edited || false,
-      is_deleted: message.is_deleted || false,
-      user: message.profiles?.[0]
-        ? {
-            id: message.profiles[0].id,
-            username: message.profiles[0].username,
-            avatar_url: message.profiles[0].avatar_url,
-            created_at: message.profiles[0].created_at,
-            updated_at: message.profiles[0].updated_at,
-            role: message.profiles[0].role || 'user',
-            last_seen: message.profiles[0].last_seen,
-            display_name: message.profiles[0].display_name,
-            status_message: message.profiles[0].status_message
-          } as Profile
-        : undefined
-    })) ?? [];
-  }, []);
-
   const fetchMessages = useCallback(async (lastMessageId?: string) => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
+      
       let query = supabase
         .from('messages')
         .select(`
           id,
           content,
-          created_at,
           user_id,
+          chatroom_id,
+          created_at,
           is_edited,
           is_deleted,
-          profiles!inner(
-            id, 
-            username, 
+          bubble_color,
+          user:profiles!messages_user_id_fkey (
+            id,
+            username,
             avatar_url,
+            display_name,
+            status_message,
             created_at,
             updated_at,
-            role,
-            last_seen,
-            display_name,
-            status_message
+            role
           )
         `)
         .eq('chatroom_id', chatroomId)
@@ -77,13 +54,41 @@ export const useMessages = (chatroomId: string) => {
       const { data, error } = await query;
       
       if (error) throw error;
-      
-      const transformedMessages = transformMessages(data || []);
+
+      const transformedMessages: Message[] = (data || []).map(message => {
+        // Handle both array and single object user data
+        const userData = Array.isArray(message.user) ? message.user[0] : message.user;
+        const user: User = {
+          id: userData?.id || message.user_id,
+          username: userData?.username || 'Unknown',
+          avatar_url: userData?.avatar_url || null,
+          display_name: userData?.display_name || null,
+          status_message: userData?.status_message || null,
+          created_at: userData?.created_at || message.created_at,
+          updated_at: userData?.updated_at || message.created_at,
+          role: userData?.role || 'user'
+        };
+
+        return {
+          id: message.id,
+          content: message.content,
+          user_id: message.user_id,
+          chatroom_id: message.chatroom_id,
+          created_at: message.created_at,
+          is_edited: message.is_edited || false,
+          is_deleted: message.is_deleted || false,
+          bubble_color: message.bubble_color || null,
+          user
+        };
+      });
+
       setState(prev => ({
-        ...prev,
-        messages: lastMessageId ? [...prev.messages, ...transformedMessages] : transformedMessages,
-        hasMore: data?.length === PAGE_SIZE,
-        loading: false
+        messages: lastMessageId 
+          ? [...prev.messages, ...transformedMessages]
+          : transformedMessages,
+        hasMore: transformedMessages.length === PAGE_SIZE,
+        loading: false,
+        error: null
       }));
     } catch (error) {
       setState(prev => ({
@@ -92,7 +97,7 @@ export const useMessages = (chatroomId: string) => {
         loading: false
       }));
     }
-  }, [chatroomId, transformMessages]);
+  }, [chatroomId]);
 
   useEffect(() => {
     if (chatroomId) {

@@ -6,7 +6,7 @@ export interface User {
   status_message?: string;
   created_at: string;
   updated_at: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'moderator';
 }
 
 export interface Profile extends User {
@@ -21,11 +21,43 @@ export interface DatabaseMessage {
   chatroom_id: string;
   is_edited: boolean;
   is_deleted: boolean;
-  profiles: Profile[];
+  user?: Profile;
 }
 
-export interface Message extends Omit<DatabaseMessage, 'profiles'> {
-  user?: Profile;
+export interface DirectDatabaseMessage {
+  id: string;
+  content: string;
+  created_at: string;
+  sender_id: string;
+  receiver_id: string;
+  conversation_id: string;
+  read_at: string | null;
+  sender: Profile;
+  receiver: Profile;
+}
+
+export interface Message {
+  id: string;
+  content: string;
+  user_id: string;
+  created_at: string;
+  chatroom_id: string;
+  is_edited: boolean;
+  is_deleted: boolean;
+  bubble_color?: string;
+  user?: User;
+}
+
+export interface DirectMessage {
+  id: string;
+  content: string;
+  created_at: string;
+  sender_id: string;
+  receiver_id: string;
+  conversation_id: string;
+  read_at: string | null;
+  sender?: Profile;
+  receiver?: Profile;
 }
 
 export interface ApiResponse<T> {

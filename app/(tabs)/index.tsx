@@ -73,7 +73,7 @@ export default function ChatsScreen() {
       onPress={() => router.push(`/chatroom/${item.id}`)}
     >
       <Avatar
-        uri={item.lastMessage?.sender?.avatar_url || 'https://via.placeholder.com/50'}
+        uri={item.lastMessage?.sender?.avatar_url}
         username={item.lastMessage?.sender?.username || 'Unknown'}
         size={50}
         style={styles.avatar}

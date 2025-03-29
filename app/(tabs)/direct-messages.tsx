@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
 import { useTheme } from '@/context/theme';
 import { DEFAULT_AVATAR_URL } from '@/lib/constants';
+import Avatar from '@/components/Avatar';
 
 interface DirectMessage {
   id: string;
@@ -71,19 +72,22 @@ export default function DirectMessagesScreen() {
   },[fetchDirectMessages]);
 
   const renderItem = ({ item }: { item: DirectMessage }) => {
-    const otherUser = item.sender.id === session?.user.id ? item.receiver : item.sender;
+    if (!item || !item.sender || !item.receiver) return null;
     
+    const otherUser = item.sender.id === session?.user.id ? item.receiver : item.sender;
+    if (!otherUser) return null;
+  
     return (
       <TouchableOpacity 
-        style={styles.chatItem}
-        onPress={() => router.push(`/direct-message/${otherUser.id}`)}
+        style={[styles.chatItem, { backgroundColor: colors.surface }]}
+        onPress={() => router.push(`/direct-message/${item.id}`)}
       >
         <View style={styles.avatarContainer}>
-          <Image 
-            source={{ 
-              uri: otherUser.avatar_url || `${DEFAULT_AVATAR_URL}?seed=${otherUser.username}`
-            }} 
-            style={styles.avatar} 
+          <Avatar 
+            uri={otherUser.avatar_url}
+            username={otherUser.username}
+            size={50}
+            style={styles.avatar}
           />
         </View>
         <View style={styles.chatInfo}>

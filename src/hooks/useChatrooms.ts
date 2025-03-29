@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { joinChatroom } from '../services/chatroomService';
 
 export interface Chatroom {
   id: string;
@@ -37,7 +38,6 @@ export const useChatrooms = () => {
 
   const fetchChatrooms = useCallback(async () => {
     try {
-      // Add this check
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         console.error('No active session');
@@ -45,39 +45,56 @@ export const useChatrooms = () => {
       }
 
       const { data, error } = await supabase
-        .from('chatrooms')
+        .from('chatroom_memberships')
         .select(`
-          id,
-          name,
-          province_id, // Include province_id
-          messages (
+          chatroom:chatrooms (
             id,
-            content,
-            created_at,
-            profiles:user_id (
-              username,
-              avatar_url
+            name,
+            province_id,
+            messages (
+              id,
+              content,
+              created_at,
+              is_edited,
+              is_deleted,
+              user:profiles!messages_user_id_fkey (
+                id,
+                username,
+                avatar_url,
+                display_name,
+                status_message,
+                role,
+                created_at,
+                updated_at
+              )
             )
           )
         `)
+        .eq('user_id', session.user.id)
         .order('created_at', { ascending: false, foreignTable: 'messages' })
         .limit(1, { foreignTable: 'messages' });
-      
-      if (error) {
-        console.error('Error fetching chatrooms:', error);
-        return;
-      }
 
-      setChatrooms(transformChatrooms(data || []));
+      if (error) throw error;
+
+      const transformedData = data?.map(item => item.chatroom) || [];
+      setChatrooms(transformChatrooms(transformedData));
     } catch (error) {
       console.error('Error fetching chatrooms:', error);
       setChatrooms([]);
     }
   }, []);
 
+  const handleJoinChatroom = async (chatroomId: string) => {
+    const result = await joinChatroom(chatroomId);
+    if (!result.error) {
+      await fetchChatrooms();
+    }
+    return result;
+  };
+
   useEffect(() => {
     fetchChatrooms();
   }, [fetchChatrooms]);
 
-  return { chatrooms, fetchChatrooms };
+  return { chatrooms, fetchChatrooms, joinChatroom: handleJoinChatroom };
 };

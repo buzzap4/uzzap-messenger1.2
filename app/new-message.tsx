@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Search, ArrowLeft } from 'lucide-react-native';
 import { useAuth } from '@/context/auth';
 import { DEFAULT_AVATAR_URL } from '@/lib/constants';
+import Avatar from '@/components/Avatar';
 
 interface User {
   id: string;
@@ -122,10 +123,10 @@ export default function NewMessageScreen() {
             style={styles.userItem}
             onPress={() => startConversation(item.id)}
           >
-            <Image
-              source={{
-                uri: item.avatar_url || `${DEFAULT_AVATAR_URL}?seed=${item.username}`
-              }}
+            <Avatar
+              uri={item.avatar_url}
+              username={item.username}
+              size={48}
               style={styles.avatar}
             />
             <Text style={styles.username}>{item.username}</Text>

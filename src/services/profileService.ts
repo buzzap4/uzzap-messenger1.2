@@ -1,23 +1,36 @@
-import { supabase, handleDatabaseError } from '@/lib/supabase';
-import type { Database } from '@/src/types/database';
+import { supabase, handleDatabaseError, type Tables, type DatabaseResponse } from '../../lib/supabase';
+import { PostgrestError } from '@supabase/supabase-js';
 
-type Profile = Database['public']['Tables']['profiles']['Row'];
-type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
+type Profile = Tables['profiles']['Row'];
+type ProfileInsert = Tables['profiles']['Insert'];
 
-export const createProfile = async (profileData: ProfileInsert) => {
+interface ProfileResponse {
+  data: Profile | null;
+  error: Error | null;
+}
+
+export const createProfile = async (profileData: ProfileInsert): Promise<ProfileResponse> => {
   try {
+    const { data: authData } = await supabase.auth.getSession();
+    
+    if (!authData?.session?.user || authData.session.user.id !== profileData.id) {
+      throw new Error('Unauthorized: Can only create profile for authenticated user');
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .insert([{
         ...profileData,
-        role: profileData.role || 'user', // Ensure role is set
+        role: profileData.role || 'user',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }])
       .select()
       .single();
 
     if (error) {
       const errorMessage = handleDatabaseError(error);
-      throw new Error(errorMessage || 'Failed to create profile');
+      throw new Error(errorMessage);
     }
 
     return { data, error: null };
@@ -51,26 +64,27 @@ export const getProfile = async (userId: string) => {
 
 export const updateProfile = async (
   userId: string,
-  updates: {
-    username?: string;
-    display_name?: string | null;
-    avatar_url?: string | null;
-    status_message?: string | null;
-  }
-) => {
+  updates: Partial<Omit<Profile, 'id' | 'created_at' | 'updated_at' | 'role'>>
+): Promise<DatabaseResponse<Profile>> => {
   try {
-    // Ensure only provided fields are updated
     const { data, error } = await supabase
       .from('profiles')
-      .update(updates)
+      .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', userId)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      const errorMessage = handleDatabaseError(error);
+      throw new Error(errorMessage);
+    }
+
     return { data, error: null };
   } catch (error) {
     console.error('Error updating profile:', error);
-    return { data: null, error };
+    return { 
+      data: null, 
+      error: new Error(error instanceof PostgrestError ? handleDatabaseError(error) : 'Unknown error occurred')
+    };
   }
 };

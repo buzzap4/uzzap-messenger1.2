@@ -19,21 +19,38 @@ export default function SettingsScreen() {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError || !session?.user) throw new Error('Failed to fetch session or user');
 
+        // First try to get existing preferences
         const { data, error } = await supabase
           .from('user_preferences')
           .select('notifications_enabled')
           .eq('user_id', session.user.id)
           .single();
 
-        if (error) throw error;
-        setNotificationsEnabled(data?.notifications_enabled || false);
+        if (error) {
+          if (error.code === 'PGRST116') { // Record not found
+            // Create default preferences if none exist
+            const { error: insertError } = await supabase
+              .from('user_preferences')
+              .insert({
+                user_id: session.user.id,
+                notifications_enabled: true,
+                theme_preference: isDark ? 'dark' : 'light'
+              });
+            if (!insertError) {
+              setNotificationsEnabled(true);
+            }
+          }
+          return;
+        }
+
+        setNotificationsEnabled(data?.notifications_enabled ?? false);
       } catch (err) {
         console.error('Error fetching notification preference:', err);
       }
     };
 
     fetchNotificationPreference();
-  }, []);
+  }, [isDark]);
 
   const toggleNotifications = async (value: boolean) => {
     try {

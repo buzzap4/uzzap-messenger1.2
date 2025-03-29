@@ -1,16 +1,15 @@
-import { supabase } from '../lib/supabaseClient';
+import { createProfile } from '../services/profileService';
 
 export const createUserProfile = async (userId: string, username: string) => {
   try {
-    const { error } = await supabase
-      .from('profiles')
-      .insert([
-        {
-          id: userId,
-          username,
-          created_at: new Date().toISOString(),
-        }
-      ]);
+    const { data, error } = await createProfile({
+      id: userId,
+      username,
+      display_name: null,
+      avatar_url: null,
+      status_message: null,
+      role: 'user'
+    });
     
     if (error) throw error;
     return true;

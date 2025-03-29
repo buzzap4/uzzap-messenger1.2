@@ -8,9 +8,9 @@ export interface Database {
           avatar_url: string | null
           display_name: string | null
           status_message: string | null
+          role: 'user' | 'admin' | 'moderator'
           created_at: string
           updated_at: string
-          role: 'user' | 'admin' | 'moderator'
         }
         Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>
@@ -22,8 +22,10 @@ export interface Database {
           user_id: string
           chatroom_id: string
           created_at: string
+          is_edited: boolean
+          is_deleted: boolean
         }
-        Insert: Omit<Database['public']['Tables']['messages']['Row'], 'id' | 'created_at'>
+        Insert: Omit<Database['public']['Tables']['messages']['Row'], 'id' | 'created_at' | 'is_edited' | 'is_deleted'>
         Update: Partial<Database['public']['Tables']['messages']['Insert']>
       }
       direct_messages: {

@@ -1,23 +1,26 @@
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
-import { Send, Image as ImageIcon, Smile } from 'lucide-react-native';
+import { Send, Image as ImageIcon, Smile, Palette } from 'lucide-react-native';
 import { useTheme } from '@/context/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { FileUploadModal } from './FileUploadModal';
 import { EmojiPickerModal } from './EmojiPickerModal';
+import { ColorPickerModal } from './ColorPickerModal';
 
 interface MessageInputProps {
-  onSend: (message: string, type?: 'text' | 'image') => void;
+  onSend: (message: string, type: 'text' | 'image' | undefined, color?: string) => void;
   onImageSelect?: () => void;
   disabled?: boolean;
 }
 
-export default function MessageInput({ onSend, onImageSelect, disabled }: MessageInputProps) {
+export default function MessageInput({ onSend, disabled }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const { colors } = useTheme();
   const scale = new Animated.Value(1);
   const [showFileModal, setShowFileModal] = useState(false);
   const [showEmojiModal, setShowEmojiModal] = useState(false);
+  const [showColorModal, setShowColorModal] = useState(false);
+  const [selectedColor, setSelectedColor] = useState('#2ECC71');
 
   const handleSend = () => {
     if (message.trim()) {
@@ -33,7 +36,7 @@ export default function MessageInput({ onSend, onImageSelect, disabled }: Messag
           useNativeDriver: true,
         }),
       ]).start(() => {
-        onSend(message.trim(), 'text');
+        onSend(message.trim(), 'text', selectedColor);
         setMessage('');
       });
     }
@@ -47,6 +50,10 @@ export default function MessageInput({ onSend, onImageSelect, disabled }: Messag
     setMessage(prev => prev + emoji);
   };
 
+  const handleColorSelect = (color: string) => {
+    setSelectedColor(color);
+  };
+
   return (
     <View style={[styles.container, { borderTopColor: colors.border, backgroundColor: colors.surface }]}>
       <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
@@ -56,6 +63,10 @@ export default function MessageInput({ onSend, onImageSelect, disabled }: Messag
         
         <TouchableOpacity onPress={() => setShowFileModal(true)} style={styles.icon}>
           <Ionicons name="attach-outline" size={24} color="#666" />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => setShowColorModal(true)} style={styles.icon}>
+          <Palette size={24} color="#666" />
         </TouchableOpacity>
 
         <TextInput
@@ -93,6 +104,12 @@ export default function MessageInput({ onSend, onImageSelect, disabled }: Messag
         visible={showEmojiModal}
         onClose={() => setShowEmojiModal(false)}
         onEmojiSelect={handleEmojiSelect}
+      />
+
+      <ColorPickerModal
+        visible={showColorModal}
+        onClose={() => setShowColorModal(false)}
+        onColorSelect={handleColorSelect}
       />
     </View>
   );

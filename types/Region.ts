@@ -7,7 +7,7 @@ export interface Region {
 export interface Province {
   id: string;
   name: string;
-  chatrooms: Chatroom[];
+  chatrooms?: Chatroom[]; // Make chatrooms an array
 }
 
 export interface Chatroom {
