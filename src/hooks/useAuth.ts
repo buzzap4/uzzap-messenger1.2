@@ -2,7 +2,7 @@ import { createProfile } from '../services/profileService';
 
 export const createUserProfile = async (userId: string, username: string) => {
   try {
-    const { data, error } = await createProfile({
+    const { error } = await createProfile({
       id: userId,
       username,
       display_name: null,

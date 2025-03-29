@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Animated } from 'react-native';
 import { Link, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock } from 'lucide-react-native';
@@ -141,7 +141,6 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState(0); // Track the current step
   const animatedValues = useRef([...Array(5)].map(() => new Animated.Value(0))).current; // 5 letters in "Uzzap"
   const { showToast } = useToast();
   const { colors } = useTheme();
@@ -160,7 +159,7 @@ export default function SignIn() {
         useNativeDriver: true,
       })
     )).start();
-  }, [animatedValues]);
+  }, [animatedValues, fadeAnim, progressAnim, steps.length]); // Added missing dependencies
 
   useEffect(() => {
     const animateSteps = async () => {
@@ -173,28 +172,22 @@ export default function SignIn() {
         }).start();
 
         Animated.timing(progressAnim, {
-          toValue: (i + 1) / steps.length, // Increment progress
+          toValue: (i + 1) / steps.length,
           duration: 1000,
           useNativeDriver: false,
         }).start();
 
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second
+        await new Promise(resolve => setTimeout(resolve, 1000));
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 500,
           useNativeDriver: true,
         }).start();
-
-        await new Promise(resolve => setTimeout(resolve, 500)); // Wait for fade-out
       }
-
-      // Add a short delay after "Initializing" for smooth transition
-      await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 0.5 seconds
     };
 
-    // Automatically start animations when the screen loads
     animateSteps();
-  }, []); // Empty dependency array to run only once when the component mounts
+  }, [fadeAnim, progressAnim, steps.length]); // Added missing dependencies
 
   const renderLogo = () => {
     const letters = ['U', 'z', 'z', 'a', 'p'];

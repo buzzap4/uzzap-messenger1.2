@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Search, ArrowLeft } from 'lucide-react-native';
 import { useAuth } from '@/context/auth';
-import { DEFAULT_AVATAR_URL } from '@/lib/constants';
 import Avatar from '@/components/Avatar';
 import { useTheme } from '@/context/theme';
 
@@ -12,13 +11,6 @@ interface User {
   id: string;
   username: string;
   avatar_url: string | null;
-}
-
-interface Conversation {
-  id: string;
-  created_at: string;
-  user1_id: string;
-  user2_id: string;
 }
 
 export default function NewMessageScreen() {

@@ -1,3 +1,10 @@
+-- Truncate tables to delete existing regions, provinces, chatrooms, and related data
+TRUNCATE TABLE chatroom_memberships CASCADE;
+TRUNCATE TABLE messages CASCADE;
+TRUNCATE TABLE chatrooms CASCADE;
+TRUNCATE TABLE provinces CASCADE;
+TRUNCATE TABLE regions CASCADE;
+
 -- Create auth users first (requires superuser privileges)
 DO $$
 DECLARE
@@ -51,24 +58,77 @@ CROSS JOIN (
 WHERE r.name = 'REGION IV-A - CALABARZON'
 ON CONFLICT (name, region_id) DO NOTHING;
 
--- Seed regions
+-- Complete list of regions in the Philippines
 INSERT INTO regions (id, name) VALUES
-    ('f47ac10b-58cc-4372-a567-0e02b2c3d479', 'Luzon'),
-    ('f47ac10b-58cc-4372-a567-0e02b2c3d480', 'Visayas'),
-    ('f47ac10b-58cc-4372-a567-0e02b2c3d481', 'Mindanao');
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d479', 'National Capital Region (NCR)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d480', 'Cordillera Administrative Region (CAR)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d481', 'Ilocos Region (Region I)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d482', 'Cagayan Valley (Region II)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d483', 'Central Luzon (Region III)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d484', 'CALABARZON (Region IV-A)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d485', 'MIMAROPA (Region IV-B)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d486', 'Bicol Region (Region V)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d487', 'Western Visayas (Region VI)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d488', 'Central Visayas (Region VII)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d489', 'Eastern Visayas (Region VIII)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d490', 'Zamboanga Peninsula (Region IX)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d491', 'Northern Mindanao (Region X)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d492', 'Davao Region (Region XI)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d493', 'SOCCSKSARGEN (Region XII)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d494', 'Caraga (Region XIII)'),
+    ('f47ac10b-58cc-4372-a567-0e02b2c3d495', 'Bangsamoro Autonomous Region in Muslim Mindanao (BARMM)')
+ON CONFLICT (id) DO NOTHING;
 
--- Seed provinces
+-- Complete list of provinces in the Philippines
 INSERT INTO provinces (id, name, region_id) VALUES
-    -- Luzon provinces
+    -- NCR
     ('b5f7c10b-58cc-4372-a567-0e02b2c3d482', 'Metro Manila', 'f47ac10b-58cc-4372-a567-0e02b2c3d479'),
-    ('b5f7c10b-58cc-4372-a567-0e02b2c3d483', 'Cavite', 'f47ac10b-58cc-4372-a567-0e02b2c3d479'),
-    ('b5f7c10b-58cc-4372-a567-0e02b2c3d484', 'Laguna', 'f47ac10b-58cc-4372-a567-0e02b2c3d479'),
-    -- Visayas provinces
-    ('b5f7c10b-58cc-4372-a567-0e02b2c3d485', 'Cebu', 'f47ac10b-58cc-4372-a567-0e02b2c3d480'),
-    ('b5f7c10b-58cc-4372-a567-0e02b2c3d486', 'Bohol', 'f47ac10b-58cc-4372-a567-0e02b2c3d480'),
-    -- Mindanao provinces
-    ('b5f7c10b-58cc-4372-a567-0e02b2c3d487', 'Davao', 'f47ac10b-58cc-4372-a567-0e02b2c3d481'),
-    ('b5f7c10b-58cc-4372-a567-0e02b2c3d488', 'Zamboanga', 'f47ac10b-58cc-4372-a567-0e02b2c3d481');
+    -- CAR
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d483', 'Abra', 'f47ac10b-58cc-4372-a567-0e02b2c3d480'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d484', 'Benguet', 'f47ac10b-58cc-4372-a567-0e02b2c3d480'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d485', 'Ifugao', 'f47ac10b-58cc-4372-a567-0e02b2c3d480'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d486', 'Kalinga', 'f47ac10b-58cc-4372-a567-0e02b2c3d480'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d487', 'Mountain Province', 'f47ac10b-58cc-4372-a567-0e02b2c3d480'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d488', 'Apayao', 'f47ac10b-58cc-4372-a567-0e02b2c3d480'),
+    -- Region I
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d489', 'Ilocos Norte', 'f47ac10b-58cc-4372-a567-0e02b2c3d481'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d490', 'Ilocos Sur', 'f47ac10b-58cc-4372-a567-0e02b2c3d481'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d491', 'La Union', 'f47ac10b-58cc-4372-a567-0e02b2c3d481'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d492', 'Pangasinan', 'f47ac10b-58cc-4372-a567-0e02b2c3d481'),
+    -- Region II
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d493', 'Batanes', 'f47ac10b-58cc-4372-a567-0e02b2c3d482'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d494', 'Cagayan', 'f47ac10b-58cc-4372-a567-0e02b2c3d482'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d495', 'Isabela', 'f47ac10b-58cc-4372-a567-0e02b2c3d482'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d496', 'Nueva Vizcaya', 'f47ac10b-58cc-4372-a567-0e02b2c3d482'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d497', 'Quirino', 'f47ac10b-58cc-4372-a567-0e02b2c3d482'),
+    -- Region III
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d498', 'Aurora', 'f47ac10b-58cc-4372-a567-0e02b2c3d483'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d499', 'Bataan', 'f47ac10b-58cc-4372-a567-0e02b2c3d483'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d500', 'Bulacan', 'f47ac10b-58cc-4372-a567-0e02b2c3d483'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d501', 'Nueva Ecija', 'f47ac10b-58cc-4372-a567-0e02b2c3d483'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d502', 'Pampanga', 'f47ac10b-58cc-4372-a567-0e02b2c3d483'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d503', 'Tarlac', 'f47ac10b-58cc-4372-a567-0e02b2c3d483'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d504', 'Zambales', 'f47ac10b-58cc-4372-a567-0e02b2c3d483'),
+    -- Region IV-A
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d505', 'Cavite', 'f47ac10b-58cc-4372-a567-0e02b2c3d484'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d506', 'Laguna', 'f47ac10b-58cc-4372-a567-0e02b2c3d484'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d507', 'Batangas', 'f47ac10b-58cc-4372-a567-0e02b2c3d484'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d508', 'Rizal', 'f47ac10b-58cc-4372-a567-0e02b2c3d484'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d509', 'Quezon', 'f47ac10b-58cc-4372-a567-0e02b2c3d484'),
+    -- Region IV-B
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d510', 'Occidental Mindoro', 'f47ac10b-58cc-4372-a567-0e02b2c3d485'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d511', 'Oriental Mindoro', 'f47ac10b-58cc-4372-a567-0e02b2c3d485'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d512', 'Marinduque', 'f47ac10b-58cc-4372-a567-0e02b2c3d485'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d513', 'Romblon', 'f47ac10b-58cc-4372-a567-0e02b2c3d485'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d514', 'Palawan', 'f47ac10b-58cc-4372-a567-0e02b2c3d485'),
+    -- Region V
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d515', 'Albay', 'f47ac10b-58cc-4372-a567-0e02b2c3d486'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d516', 'Camarines Norte', 'f47ac10b-58cc-4372-a567-0e02b2c3d486'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d517', 'Camarines Sur', 'f47ac10b-58cc-4372-a567-0e02b2c3d486'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d518', 'Catanduanes', 'f47ac10b-58cc-4372-a567-0e02b2c3d486'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d519', 'Masbate', 'f47ac10b-58cc-4372-a567-0e02b2c3d486'),
+    ('b5f7c10b-58cc-4372-a567-0e02b2c3d520', 'Sorsogon', 'f47ac10b-58cc-4372-a567-0e02b2c3d486')
+ON CONFLICT (id) DO NOTHING;
 
 -- Seed profiles (with conflict handling)
 INSERT INTO profiles (id, username, avatar_url, display_name, status_message, role)

@@ -8,7 +8,6 @@ import { useAuth } from '@/context/auth';
 import { createProfile } from '@/src/services/profileService';
 import Avatar from '@/components/Avatar';
 import { storageConfig } from '../../src/config/storage';
-import { joinChatroom, leaveChatroom } from '../../lib/supabase';
 import { handleError, getErrorMessage } from '@/lib/errorHandler';
 import { DEFAULT_AVATAR_URL } from '@/lib/constants';
 
@@ -17,7 +16,7 @@ export default function OnboardingScreen() {
   const [displayName, setDisplayName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { session, completeOnboarding, signOut } = useAuth();
+  const { session, completeOnboarding } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarSeed, setAvatarSeed] = useState('');
 
@@ -82,7 +81,9 @@ export default function OnboardingScreen() {
         id: session.user.id,
         username: username.trim(),
         display_name: displayName.trim(),
-        avatar_url: avatarUrl || undefined,
+        avatar_url: avatarUrl || null,
+        status_message: null,
+        role: 'user',
       });
 
       if (error) throw error;
@@ -95,53 +96,6 @@ export default function OnboardingScreen() {
       Alert.alert('Error', message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleJoinChatroom = async (chatroomId: string) => {
-    try {
-      const userId = session?.user?.id; // Get the current user's ID from the session
-      if (!userId) {
-        Alert.alert('Error', 'No user session found');
-        return;
-      }
-      await joinChatroom(chatroomId, userId);
-      Alert.alert('Success', 'You have joined the chatroom.');
-    } catch {
-      Alert.alert('Error', 'Failed to join chatroom.');
-    }
-  };
-
-  const handleLeaveChatroom = async (chatroomId: string) => {
-    try {
-      const userId = session?.user?.id; // Get the current user's ID from the session
-      if (!userId) {
-        Alert.alert('Error', 'No user session found');
-        return;
-      }
-      await leaveChatroom(chatroomId, userId);
-      Alert.alert('Success', 'You have left the chatroom.');
-    } catch {
-      Alert.alert('Error', 'Failed to leave chatroom.');
-    }
-  };
-
-  const fetchUserPreferences = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('user_preferences')
-        .select(`
-          id,
-          notifications_enabled // Ensure this matches the schema
-        `)
-        .eq('user_id', userId)
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (err) {
-      console.error('Error fetching user preferences:', err);
-      return null;
     }
   };
 

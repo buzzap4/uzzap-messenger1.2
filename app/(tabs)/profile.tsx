@@ -5,7 +5,7 @@ import { useAuth } from '@/context/auth';
 import { MessageCircle, Users, Clock, Camera } from 'lucide-react-native';
 import { createProfile, getProfile, updateProfile } from '@/src/services/profileService';
 import { useTheme } from '@/context/theme';
-import { handleError, getErrorMessage } from '@/lib/errorHandler';
+import { handleError } from '@/lib/errorHandler';
 
 interface Profile {
   id: string;
@@ -78,9 +78,7 @@ export default function ProfileScreen() {
         throw new Error('No authenticated user');        
       }
 
-      const { data, error: fetchError } = await getProfile(session.user.id);
-      if (fetchError) throw fetchError;
-
+      const { data } = await getProfile(session.user.id);
       if (!data) {
         // Create default profile with all required fields
         const defaultProfile = {
@@ -125,8 +123,7 @@ export default function ProfileScreen() {
       setLoading(true);
       if (!session?.user?.id || !profile) return;
 
-      const { error } = await updateProfile(session.user.id, updates);
-      if (error) throw error;
+      await updateProfile(session.user.id, updates);
 
       setProfile({ ...profile, ...updates });
     } catch (error) {

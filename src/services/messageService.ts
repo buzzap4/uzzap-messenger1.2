@@ -1,5 +1,4 @@
-import { supabase, handleDatabaseError } from '../../lib/supabase';
-import type { Message } from '../types/models';
+import { supabase } from '../../lib/supabase';
 
 export const sendMessage = async (content: string, chatroom_id: string) => {
   try {

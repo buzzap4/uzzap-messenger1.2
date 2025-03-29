@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Search, Plus, Loader2 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
 import { useTheme } from '@/context/theme';
-import { DEFAULT_AVATAR_URL } from '@/lib/constants';
 import Avatar from '@/components/Avatar';
 
 interface DirectMessage {

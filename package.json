@@ -18,6 +18,7 @@
     "@react-navigation/native": "^7.0.14",
     "@shopify/flash-list": "1.7.3",
     "@supabase/supabase-js": "^2.49.3",
+    "@supabase/storage-js": "^2.0.0",
     "axios": "^1.8.4",
     "date-fns": "^4.1.0",
     "expo": "~52.0.41",
@@ -61,7 +62,8 @@
           "@lucide/lab",
           "date-fns",
           "lucide-react-native"
-        ]
+        ],
+        "listUnknownPackages": false
       }
     }
   },
@@ -69,7 +71,6 @@
     "@babel/core": "^7.25.2",
     "@types/react": "~18.3.12",
     "eslint": "^8.57.0",
-    "eslint-config-expo": "~8.0.1",
-    "typescript": "^5.3.3"
+    "eslint-config-expo": "~8.0.1"
   }
 }

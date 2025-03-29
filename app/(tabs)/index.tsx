@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -25,7 +25,7 @@ const formatTimestamp = (timestamp: string | null): string => {
   if (!timestamp) return '';
   try {
     return format(new Date(timestamp), 'MMM d, h:mm a');
-  } catch (error) {
+  } catch {
     return '';
   }
 };
@@ -37,30 +37,21 @@ export default function ChatsScreen() {
   const [chatrooms, setChatrooms] = useState<ChatroomWithMessages[]>([]);
   const router = useRouter();
 
-  useEffect(() => {
-    fetchChatrooms();
-  }, []);
-
-  const fetchChatrooms = async () => {
+  const fetchChatrooms = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('chatroom_memberships')
         .select(`
-          chatroom:chatrooms (
+          chatroom:chatrooms!inner (
             id,
             name
           )
         `)
-        .eq('user_id', session?.user?.id); // Filter by the current user's membership
+        .eq('user_id', session?.user?.id) as { data: { chatroom: { id: string; name: string } }[] | null };
 
-      if (error) {
-        console.error('Supabase query error:', error);
-        throw error;
-      }
+      const unsplashImages = await fetchSceneryImages('scenery');
 
-      const unsplashImages = await fetchSceneryImages('scenery'); // Fetch random images from Unsplash
-
-      const transformedData = data?.map((item: any, index: number) => ({
+      const transformedData = data?.map((item, index) => ({
         id: item.chatroom.id,
         name: item.chatroom.name,
         lastMessage: {
@@ -68,18 +59,22 @@ export default function ChatsScreen() {
           created_at: '',
           sender: {
             username: 'Unknown',
-            avatar_url: unsplashImages[index % unsplashImages.length] || null, // Use Unsplash image if avatar_url is null
+            avatar_url: unsplashImages[index % unsplashImages.length] || null,
           },
         },
       })) || [];
 
       setChatrooms(transformedData);
     } catch (err) {
-      console.error('Error fetching chatrooms:', err); // Log the error object
+      console.error('Error fetching chatrooms:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.user?.id]); // Wrapped in useCallback
+
+  useEffect(() => {
+    fetchChatrooms();
+  }, [fetchChatrooms]); // Updated dependency
 
   const renderItem = ({ item }: { item: ChatroomWithMessages }) => (
     <TouchableOpacity

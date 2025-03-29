@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '@/lib/supabase'; // Fixed import path
 import { joinChatroom } from '../services/chatroomService';
 
 export interface Chatroom {

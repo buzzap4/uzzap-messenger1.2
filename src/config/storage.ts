@@ -1,6 +1,8 @@
 import { supabase } from '../../lib/supabase';
 import { StorageError } from '@supabase/storage-js';
 
+export { supabase };
+
 export const storageConfig = {
   bucketName: 'uzzap',
   maxFileSize: 5 * 1024 * 1024, // 5MB

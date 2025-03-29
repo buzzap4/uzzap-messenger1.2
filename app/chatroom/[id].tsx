@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { FlatList, StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -8,21 +8,12 @@ import ChatMessage from '@/components/ChatMessage';
 import MessageInput from '@/components/MessageInput';
 import { useProfile } from '@/src/hooks/useProfile';
 import { useMessages } from '@/src/hooks/useMessages';
-import { Message, User } from '@/src/types/models';
+import { Message } from '@/src/types/models';
 import { verifyOrJoinChatroom } from '@/src/services/chatroomService';
 
+// Ensure hooks are called unconditionally
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  
-  // Add error handling for missing ID
-  if (!id) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Invalid chatroom ID</Text>
-      </View>
-    );
-  }
-
   const { session } = useAuth();
   const { colors } = useTheme();
   const { profile, loading: profileLoading, fetchProfile } = useProfile();
@@ -30,65 +21,52 @@ export default function ChatRoomScreen() {
   const flatListRef = useRef<FlatList<Message>>(null);
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (id && session?.user?.id) {
       fetchProfile(session.user.id);
     }
-  }, [session?.user?.id, fetchProfile]);
+  }, [id, session?.user?.id, fetchProfile]);
 
   const handleSend = async (content: string, type: 'text' | 'image' | undefined, bubbleColor?: string) => {
-    if (!session?.user?.id || !profile?.id) {
+    if (!id || !session?.user?.id || !profile?.id) {
       Alert.alert('Error', 'Please sign in to send messages');
       return;
     }
-    
-    try {
-      const { success, error: membershipError } = await verifyOrJoinChatroom(id, session.user.id);
 
+    try {
+      const { success } = await verifyOrJoinChatroom(id, session.user.id);
       if (!success) {
         Alert.alert('Error', 'Failed to verify chatroom membership');
         return;
       }
 
-      const { data: newMessage, error: messageError } = await supabase
+      const { error: messageError } = await supabase
         .from('messages')
         .insert({
           chatroom_id: id,
           content,
           user_id: session.user.id,
-          bubble_color: bubbleColor
+          bubble_color: bubbleColor,
         })
-        .select(`
-          *,
-          user:profiles(*)
-        `)
+        .select()
         .single();
 
       if (messageError) throw messageError;
-
-      // No need to update state here as subscription will handle it
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to send message');
     }
   };
 
   const subscribeToMessages = useCallback(() => {
+    if (!id) return () => {};
     const subscription = supabase
       .channel(`chatroom:${id}`)
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `chatroom_id=eq.${id}`,
-        },
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `chatroom_id=eq.${id}` },
         async (payload) => {
           const { data: messageData, error: messageError } = await supabase
             .from('messages')
-            .select(`
-              *,
-              user:profiles(*)
-            `)
+            .select('*, user:profiles(*)')
             .eq('id', payload.new.id)
             .single();
 
@@ -106,10 +84,9 @@ export default function ChatRoomScreen() {
             is_edited: messageData.is_edited || false,
             is_deleted: messageData.is_deleted || false,
             bubble_color: messageData.bubble_color,
-            user: Array.isArray(messageData.user) ? messageData.user[0] : messageData.user
+            user: Array.isArray(messageData.user) ? messageData.user[0] : messageData.user,
           };
 
-          // Use addMessage from useMessages hook to update state
           addMessage(transformedMessage);
         }
       )
@@ -121,12 +98,14 @@ export default function ChatRoomScreen() {
   }, [id, addMessage]);
 
   useEffect(() => {
-    fetchMessages();
-    const unsubscribe = subscribeToMessages();
-    return () => {
-      unsubscribe();
-    };
-  }, [fetchMessages, subscribeToMessages]);
+    if (id) {
+      fetchMessages();
+      const unsubscribe = subscribeToMessages();
+      return () => {
+        unsubscribe();
+      };
+    }
+  }, [id, fetchMessages, subscribeToMessages]);
 
   const fetchMoreMessages = async () => {
     if (!hasMore || messagesLoading) return;
@@ -139,16 +118,20 @@ export default function ChatRoomScreen() {
   const renderItem = ({ item }: { item: Message }) => (
     <ChatMessage
       content={item.content}
-      sender={item.user ?? { 
-        id: item.user_id,
-        username: 'Unknown',
-        avatar_url: null
-      }}
+      sender={item.user ?? { id: item.user_id, username: 'Unknown', avatar_url: null }}
       timestamp={item.created_at}
       isOwnMessage={item.user_id === session?.user?.id}
       bubbleColor={item.bubble_color}
     />
   );
+
+  if (!id) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Invalid chatroom ID</Text>
+      </View>
+    );
+  }
 
   if (messagesError) {
     return <Text style={styles.errorText}>{messagesError}</Text>;
@@ -164,7 +147,7 @@ export default function ChatRoomScreen() {
     >
       <FlatList
         ref={flatListRef}
-        data={messages} // Use messages directly instead of localMessages
+        data={messages}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         onEndReached={fetchMoreMessages}
@@ -180,23 +163,6 @@ export default function ChatRoomScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  messageList: {
-    paddingVertical: 16,
-  },
-  ownMessage: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#4CAF50',
-    borderRadius: 16,
-    padding: 10,
-    marginVertical: 4,
-  },
-  otherMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#E0E0E0',
-    borderRadius: 16,
-    padding: 10,
-    marginVertical: 4,
   },
   errorText: {
     color: 'red',

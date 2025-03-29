@@ -23,59 +23,6 @@ export default function RoomsScreen() {
   const [onlineUsers, setOnlineUsers] = useState<{ [key: string]: boolean }>({});
   const [chatMessages, setChatMessages] = useState<{ [key: string]: number }>({});
 
-  useEffect(() => {
-    fetchRegions();
-  }, []);
-
-  useEffect(() => {
-    const initializeMembershipStatus = async () => {
-      if (!session?.user?.id) return;
-      
-      const membershipPromises = regions.flatMap(region =>
-        region.provinces.flatMap(province =>
-          (province.chatrooms || []).map(async chatroom => {
-            const { data } = await isUserInChatroom(chatroom.id, session.user.id);
-            return { [chatroom.id]: !!data };
-          })
-        )
-      );
-
-      const membershipResults = await Promise.all(membershipPromises);
-      const initialStatus = membershipResults.reduce((acc, status) => ({ ...acc, ...status }), {});
-      setMembershipStatus(initialStatus);
-    };
-
-    if (regions.length > 0) {
-      initializeMembershipStatus();
-    }
-  }, [regions, session?.user?.id]);
-
-  useEffect(() => {
-    const onlineUsersSubscription = supabase
-      .channel('online-users')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: 'is_online=eq.true' }, (payload) => {
-        const userId = payload.new.id;
-        setOnlineUsers((prev) => ({ ...prev, [userId]: true }));
-      })
-      .subscribe();
-
-    const chatMessagesSubscription = supabase
-      .channel('new-message')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        const { chatroom_id } = payload.new;
-        setChatMessages((prev) => ({
-          ...prev,
-          [chatroom_id]: (prev[chatroom_id] || 0) + 1,
-        }));
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(onlineUsersSubscription);
-      supabase.removeChannel(chatMessagesSubscription);
-    };
-  }, []);
-
   const fetchRegions = async () => {
     try {
       if (!session?.user?.id) {
@@ -144,6 +91,59 @@ export default function RoomsScreen() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchRegions();
+  }, [fetchRegions]);
+
+  useEffect(() => {
+    const initializeMembershipStatus = async () => {
+      if (!session?.user?.id) return;
+
+      const membershipPromises = regions.flatMap(region =>
+        region.provinces.flatMap(province =>
+          (province.chatrooms || []).map(async chatroom => {
+            const { data } = await isUserInChatroom(chatroom.id, session.user.id);
+            return { [chatroom.id]: !!data };
+          })
+        )
+      );
+
+      const membershipResults = await Promise.all(membershipPromises);
+      const initialStatus = membershipResults.reduce((acc, status) => ({ ...acc, ...status }), {});
+      setMembershipStatus(initialStatus);
+    };
+
+    if (regions.length > 0) {
+      initializeMembershipStatus();
+    }
+  }, [regions, session?.user?.id]);
+
+  useEffect(() => {
+    const onlineUsersSubscription = supabase
+      .channel('online-users')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: 'is_online=eq.true' }, (payload) => {
+        const userId = payload.new.id;
+        setOnlineUsers((prev) => ({ ...prev, [userId]: true }));
+      })
+      .subscribe();
+
+    const chatMessagesSubscription = supabase
+      .channel('new-message')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const { chatroom_id } = payload.new;
+        setChatMessages((prev) => ({
+          ...prev,
+          [chatroom_id]: (prev[chatroom_id] || 0) + 1,
+        }));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(onlineUsersSubscription);
+      supabase.removeChannel(chatMessagesSubscription);
+    };
+  }, []);
 
   const handleJoinRoom = async (chatroomId: string) => {
     try {
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
   stat: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 16
   },
   statText: {
     fontSize: 12,

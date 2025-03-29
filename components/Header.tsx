@@ -28,14 +28,14 @@ export default function Header() {
       onPress: () => {
         setShowMenu(false);
         router.push('/new-message');
-      }
+      },
     },
     {
       label: 'Settings',
       onPress: () => {
         setShowMenu(false);
         router.push('/settings');
-      }
+      },
     },
     {
       label: 'Log Out',
@@ -43,12 +43,11 @@ export default function Header() {
         setShowMenu(false);
         try {
           await signOut();
-          router.replace('/sign-in');
-        } catch (error) {
+        } catch {
           Alert.alert('Error', 'Failed to log out');
         }
-      }
-    }
+      },
+    },
   ];
 
   const handleSearch = () => {

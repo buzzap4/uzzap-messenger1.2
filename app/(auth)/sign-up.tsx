@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Animated } from 'react-native';
 import { Link, router } from 'expo-router'; // Add 'router' to the import
 import { supabase } from '@/lib/supabase';
-import { createProfile } from '@/src/services/profileService';
 import { useTheme } from '@/context/theme';
 
 const useDynamicStyles = (colors: any) =>

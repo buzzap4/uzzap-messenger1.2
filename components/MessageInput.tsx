@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
-import { Send, Image as ImageIcon, Smile, Palette } from 'lucide-react-native';
+import { Send, Palette } from 'lucide-react-native';
 import { useTheme } from '@/context/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { FileUploadModal } from './FileUploadModal';
