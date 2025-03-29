@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal, TextInput } from 'react-native';
+import { SvgUri } from 'react-native-svg';
 import { useAuth } from '@/context/auth';
 import { MessageCircle, Users, Clock, Camera } from 'lucide-react-native';
 import { createProfile, getProfile, updateProfile } from '@/src/services/profileService';
@@ -193,6 +194,26 @@ export default function ProfileScreen() {
     }
   };
 
+  const renderAvatarPreview = (url: string) => {
+    if (url.includes('.svg')) {
+      return (
+        <SvgUri
+          width="100%"
+          height="100%"
+          uri={url}
+          style={styles.avatarPreview}
+        />
+      );
+    }
+    return (
+      <Image 
+        source={{ uri: url }} 
+        style={styles.avatarPreview}
+        defaultSource={require('../../assets/avatar-placeholder.png')}
+      />
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -335,11 +356,7 @@ export default function ProfileScreen() {
                   style={styles.avatarGridItem}
                   onPress={() => handleAvatarSelect(avatar.url)}
                 >
-                  <Image 
-                    source={{ uri: avatar.url }} 
-                    style={styles.avatarPreview}
-                    defaultSource={require('../../assets/avatar-placeholder.png')}
-                  />
+                  {renderAvatarPreview(avatar.url)}
                   <Text style={[styles.variantLabel, { color: colors.gray }]}>
                     {avatar.style.split('-').slice(1).join(' ') || 'Default'}
                   </Text>

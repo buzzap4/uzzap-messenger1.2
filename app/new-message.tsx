@@ -6,6 +6,7 @@ import { Search, ArrowLeft } from 'lucide-react-native';
 import { useAuth } from '@/context/auth';
 import { DEFAULT_AVATAR_URL } from '@/lib/constants';
 import Avatar from '@/components/Avatar';
+import { useTheme } from '@/context/theme';
 
 interface User {
   id: string;
@@ -22,6 +23,7 @@ interface Conversation {
 
 export default function NewMessageScreen() {
   const { session } = useAuth();
+  const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
 
@@ -100,27 +102,36 @@ export default function NewMessageScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <ArrowLeft size={24} color="#333" />
+          <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>New Message</Text>
+        <Text style={[styles.title, { color: colors.text }]}>New Message</Text>
       </View>
-      <View style={styles.searchContainer}>
-        <Search size={20} color="#666" />
+
+      <View style={[styles.searchContainer, { 
+        backgroundColor: colors.inputBackground,
+        borderColor: colors.border
+      }]}>
+        <Search size={20} color={colors.gray} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: colors.text }]}
           placeholder="Search users..."
+          placeholderTextColor={colors.gray}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
       </View>
+
       <FlatList
         data={users}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={styles.userItem}
+            style={[styles.userItem, { 
+              backgroundColor: colors.surface,
+              borderColor: colors.border
+            }]}
             onPress={() => startConversation(item.id)}
           >
             <Avatar
@@ -129,7 +140,7 @@ export default function NewMessageScreen() {
               size={48}
               style={styles.avatar}
             />
-            <Text style={styles.username}>{item.username}</Text>
+            <Text style={[styles.username, { color: colors.text }]}>{item.username}</Text>
           </TouchableOpacity>
         )}
         keyExtractor={(item) => item.id}
@@ -167,12 +178,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#f8f8f8',
     marginHorizontal: 16,
     marginVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#eaeaea',
   },
   searchInput: {
     flex: 1,
@@ -188,10 +197,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     marginVertical: 4,
-    backgroundColor: '#fff',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#eaeaea',
   },
   avatar: {
     width: 48,

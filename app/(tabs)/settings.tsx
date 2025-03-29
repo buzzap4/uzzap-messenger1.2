@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { useTheme } from '@/context/theme';
-import { Bell, Moon, Sun, Globe, Lock, Shield, HelpCircle, LogOut } from 'lucide-react-native';
+import { Bell, Moon, Sun, Globe, Lock, Shield, HelpCircle, LogOut, Info } from 'lucide-react-native';
 import { useAuth } from '@/context/auth';
 import { supabase } from '@/lib/supabase'; // Ensure you have a Supabase client setup
 import { useRouter } from 'expo-router'; // Import router for navigation
@@ -11,6 +11,7 @@ export default function SettingsScreen() {
   const { signOut } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [helpCenterVisible, setHelpCenterVisible] = useState(false);
+  const [aboutVisible, setAboutVisible] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -183,6 +184,36 @@ export default function SettingsScreen() {
       fontWeight: '600',
       fontSize: 16,
     },
+    modalScroll: {
+      maxHeight: '80%',
+      marginBottom: 16,
+    },
+    modalSubtitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      marginTop: 16,
+      marginBottom: 8,
+    },
+    faqQuestion: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginTop: 16,
+      marginBottom: 4,
+    },
+    faqAnswer: {
+      fontSize: 14,
+      lineHeight: 20,
+      marginBottom: 12,
+    },
+    featureList: {
+      marginTop: 8,
+      marginBottom: 16,
+    },
+    featureItem: {
+      fontSize: 14,
+      lineHeight: 24,
+      marginLeft: 8,
+    },
   });
 
   const renderSettingItem = (
@@ -262,6 +293,14 @@ export default function SettingsScreen() {
             <Text style={styles.actionButton}>Open</Text>
           </TouchableOpacity>
         )}
+        {renderSettingItem(
+          <Info size={24} color={colors.gray} />,
+          'About',
+          'Learn more about Uzzap',
+          <TouchableOpacity onPress={() => setAboutVisible(true)}>
+            <Text style={styles.actionButton}>View</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -285,23 +324,81 @@ export default function SettingsScreen() {
         onRequestClose={() => setHelpCenterVisible(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Help Center</Text>
-            <Text style={styles.modalText}>
-              Welcome to the Uzzap Messenger Help Center. If you have any questions or need assistance, feel free to contact us.
-            </Text>
-            <Text style={styles.modalText}>
-              <Text style={{ fontWeight: '700' }}>Creator:</Text> Uzzap Cy
-            </Text>
-            <Text style={styles.modalText}>
-              <Text style={{ fontWeight: '700' }}>License:</Text> MIT License
-            </Text>
-            <Text style={styles.modalText}>
-              <Text style={{ fontWeight: '700' }}>Version:</Text> 1.0.0
-            </Text>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: '#28A745' }]}>Help Center</Text>
+            <ScrollView style={styles.modalScroll}>
+              <Text style={[styles.modalSubtitle, { color: '#28A745' }]}>Frequently Asked Questions</Text>
+              
+              <Text style={[styles.faqQuestion, { color: '#28A745' }]}>How do I join a regional chat room?</Text>
+              <Text style={[styles.faqAnswer, { color: colors.text }]}>
+                Navigate to the Rooms tab, select your region, and tap the join button on any available chat room.
+              </Text>
+
+              <Text style={[styles.faqQuestion, { color: '#28A745' }]}>How do I start a direct message?</Text>
+              <Text style={[styles.faqAnswer, { color: colors.text }]}>
+                Go to the Messages tab and tap the plus icon to start a new conversation with any user.
+              </Text>
+
+              <Text style={[styles.faqQuestion, { color: '#28A745' }]}>How do I customize my profile?</Text>
+              <Text style={[styles.faqAnswer, { color: colors.text }]}>
+                Visit your profile page to update your avatar, display name, and status message.
+              </Text>
+
+              <Text style={[styles.modalSubtitle, { color: '#28A745' }]}>Need More Help?</Text>
+              <Text style={[styles.modalText, { color: colors.text }]}>
+                Contact us at: uzzapbeta@gmail.com
+              </Text>
+            </ScrollView>
             <TouchableOpacity
-              style={styles.closeButton}
+              style={[styles.closeButton, { backgroundColor: '#28A745' }]}
               onPress={() => setHelpCenterVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={aboutVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setAboutVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: '#28A745' }]}>About Uzzap</Text>
+            <ScrollView style={styles.modalScroll}>
+              <Text style={[styles.modalSubtitle, { color: '#28A745' }]}>Version</Text>
+              <Text style={[styles.modalText, { color: colors.text }]}>1.0.0 (Beta)</Text>
+
+              <Text style={[styles.modalSubtitle, { color: '#28A745' }]}>Features</Text>
+              <View style={styles.featureList}>
+                {[
+                  'Regional Chat Rooms',
+                  'Real-time Messaging',
+                  'Direct Messaging',
+                  'Customizable Profiles',
+                  'Dark/Light Theme',
+                  'Push Notifications',
+                  'Message Search',
+                  'User Blocking'
+                ].map((feature, index) => (
+                  <Text key={index} style={[styles.featureItem, { color: colors.text }]}>
+                    • {feature}
+                  </Text>
+                ))}
+              </View>
+
+              <Text style={[styles.modalSubtitle, { color: '#28A745' }]}>Created By</Text>
+              <Text style={[styles.modalText, { color: '#28A745', fontWeight: '600' }]}>UZZAP CY</Text>
+              <Text style={[styles.modalText, { color: colors.text }]}>
+                An innovative messaging platform designed to connect people across the Philippines
+              </Text>
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: '#28A745' }]}
+              onPress={() => setAboutVisible(false)}
             >
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
