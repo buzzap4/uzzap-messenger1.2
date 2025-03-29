@@ -13,7 +13,6 @@
     },
     "android": {
       "package": "com.uzzap.messenger",
-      "versionCode": 1,
       "permissions": [],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
