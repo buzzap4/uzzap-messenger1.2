@@ -7,9 +7,22 @@ export const joinChatroom = async (chatroomId: string) => {
       throw new Error('No active session');
     }
 
+    // First check if already a member
+    const { data: existingMembership } = await supabase
+      .from('chatroom_memberships')
+      .select('*')
+      .eq('chatroom_id', chatroomId)
+      .eq('user_id', session.user.id)
+      .single();
+
+    if (existingMembership) {
+      return { data: existingMembership, error: null };
+    }
+
+    // If not a member, insert new membership
     const { data, error } = await supabase
       .from('chatroom_memberships')
-      .upsert({
+      .insert({
         chatroom_id: chatroomId,
         user_id: session.user.id
       })

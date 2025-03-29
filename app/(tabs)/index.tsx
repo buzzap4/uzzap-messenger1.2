@@ -4,6 +4,9 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import Avatar from '@/components/Avatar';
 import { useTheme } from '@/context/theme';
+import { useAuth } from '@/context/auth'; // Import useAuth
+import { fetchSceneryImages } from '@/src/services/imageService'; // Update the import path
+import { format } from 'date-fns'; // Add this import
 
 interface ChatroomWithMessages {
   id: string;
@@ -18,8 +21,18 @@ interface ChatroomWithMessages {
   } | null;
 }
 
+const formatTimestamp = (timestamp: string | null): string => {
+  if (!timestamp) return '';
+  try {
+    return format(new Date(timestamp), 'MMM d, h:mm a');
+  } catch (error) {
+    return '';
+  }
+};
+
 export default function ChatsScreen() {
   const { colors } = useTheme();
+  const { session } = useAuth(); // Access session from useAuth
   const [loading, setLoading] = useState(true);
   const [chatrooms, setChatrooms] = useState<ChatroomWithMessages[]>([]);
   const router = useRouter();
@@ -31,37 +44,38 @@ export default function ChatsScreen() {
   const fetchChatrooms = async () => {
     try {
       const { data, error } = await supabase
-        .from('chatrooms')
+        .from('chatroom_memberships')
         .select(`
-          id,
-          name,
-          messages:messages(
-            content,
-            created_at,
-            sender:profiles(
-              username,
-              avatar_url
-            )
+          chatroom:chatrooms (
+            id,
+            name
           )
         `)
-        .order('created_at', { ascending: false })
-        .limit(1, { foreignTable: 'messages' });
+        .eq('user_id', session?.user?.id); // Filter by the current user's membership
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase query error:', error);
+        throw error;
+      }
 
-      const transformedData: ChatroomWithMessages[] = data.map(room => ({
-        id: room.id,
-        name: room.name,
-        lastMessage: room.messages?.[0] ? {
-          content: room.messages[0].content,
-          created_at: room.messages[0].created_at,
-          sender: room.messages[0].sender[0] // Ensure sender is a single object
-        } : null
-      }));
+      const unsplashImages = await fetchSceneryImages('scenery'); // Fetch random images from Unsplash
+
+      const transformedData = data?.map((item: any, index: number) => ({
+        id: item.chatroom.id,
+        name: item.chatroom.name,
+        lastMessage: {
+          content: 'No messages yet',
+          created_at: '',
+          sender: {
+            username: 'Unknown',
+            avatar_url: unsplashImages[index % unsplashImages.length] || null, // Use Unsplash image if avatar_url is null
+          },
+        },
+      })) || [];
 
       setChatrooms(transformedData);
     } catch (err) {
-      console.error('Error fetching chatrooms:', err);
+      console.error('Error fetching chatrooms:', err); // Log the error object
     } finally {
       setLoading(false);
     }
@@ -82,7 +96,7 @@ export default function ChatsScreen() {
         <View style={styles.chatHeader}>
           <Text style={[styles.chatName, { color: colors.text }]}>{item.name}</Text>
           <Text style={styles.timestamp}>
-            {item.lastMessage ? new Date(item.lastMessage.created_at).toLocaleString() : ''}
+            {formatTimestamp(item.lastMessage?.created_at ?? null)}
           </Text>
         </View>
         <View style={styles.messageRow}>

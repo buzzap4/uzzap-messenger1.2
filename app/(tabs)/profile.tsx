@@ -66,6 +66,9 @@ export default function ProfileScreen() {
   const [promptField, setPromptField] = useState<keyof Profile | null>(null);
   const [promptValue, setPromptValue] = useState('');
   const [promptTitle, setPromptTitle] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categoryAvatars, setCategoryAvatars] = useState<AvatarOption[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -147,28 +150,46 @@ export default function ProfileScreen() {
     setIsPromptVisible(false);
   };
 
-  const fetchAvatars = async () => {
+  const handleAvatarClick = async () => {
+    // Pre-load categories instead of individual avatars
+    const categories = DICEBEAR_STYLES.reduce((acc, style) => {
+      const mainCategory = style.split('-')[0];
+      if (!acc.includes(mainCategory)) acc.push(mainCategory);
+      return acc;
+    }, [] as string[]);
+    
+    setAvatarOptions(categories.map(category => ({
+      url: `https://api.dicebear.com/7.x/${category}/svg?seed=${Math.random()}`,
+      style: category
+    })));
+    setShowAvatarModal(true);
+  };
+
+  const handleCategorySelect = async (category: string) => {
+    setSelectedCategory(category);
     const seed = Math.random().toString(36).substring(7);
-    const avatars: AvatarOption[] = DICEBEAR_STYLES.map(style => ({
+    const styles = DICEBEAR_STYLES.filter(style => style.startsWith(category));
+    
+    const avatars = styles.map(style => ({
       url: `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`,
       style: style
     }));
-    setAvatarOptions(avatars);
-  };
-
-  const handleAvatarClick = async () => {    
-    await fetchAvatars();
-    setShowAvatarModal(true);
+    
+    setCategoryAvatars(avatars);
+    setShowCategoryModal(true);
+    setShowAvatarModal(false);
   };
 
   const handleAvatarSelect = async (avatarUrl: string) => {
     try {
+      setLoading(true);
       setSelectedAvatar(avatarUrl);
-      setShowAvatarModal(false);
+      setShowCategoryModal(false);
       await handleProfileUpdate({ avatar_url: avatarUrl });
     } catch (error) {
-      const errorMessage = getErrorMessage(error);
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Error', 'Failed to update avatar');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -242,28 +263,109 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Avatar Selection Modal */}
-        <Modal visible={showAvatarModal} onRequestClose={() => setShowAvatarModal(false)}>
-          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select an Avatar</Text>
-            <ScrollView contentContainerStyle={styles.avatarOptions}>
+        <View style={styles.avatarOptions}>
+          {DICEBEAR_STYLES.map((category, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.avatarOptionContainer}
+              onPress={() => handleCategorySelect(category)}
+            >
+              <Text style={[styles.avatarStyleLabel, { color: colors.text }]}>
+                {category.replace(/-/g, ' ')}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* Main Avatar Categories Modal */}
+      <Modal 
+        visible={showAvatarModal} 
+        onRequestClose={() => setShowAvatarModal(false)}
+        animationType="slide"
+        transparent
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Choose Avatar Style</Text>
+            <ScrollView contentContainerStyle={styles.avatarGrid}>
               {avatarOptions.map((avatar, index) => (
-                <View key={index} style={styles.avatarOptionContainer}>
-                  <TouchableOpacity onPress={() => handleAvatarSelect(avatar.url)}>
-                    <Image source={{ uri: avatar.url }} style={styles.avatarOption} />
-                  </TouchableOpacity>
-                  <Text style={[styles.avatarStyleLabel, { color: colors.text }]}>
-                    {avatar.style.replace(/-/g, ' ')}
+                <TouchableOpacity
+                  key={index}
+                  style={styles.avatarGridItem}
+                  onPress={() => handleCategorySelect(avatar.style)}
+                >
+                  <Image 
+                    source={{ uri: avatar.url }} 
+                    style={styles.categoryPreview}
+                    defaultSource={require('../../assets/avatar-placeholder.png')}
+                  />
+                  <Text style={[styles.categoryLabel, { color: colors.text }]}>
+                    {avatar.style.charAt(0).toUpperCase() + avatar.style.slice(1)}
                   </Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </ScrollView>
-            <TouchableOpacity onPress={() => setShowAvatarModal(false)} style={styles.modalButton}>
-              <Text style={styles.modalButtonText}>Close</Text>
+            <TouchableOpacity 
+              style={[styles.modalButton, { backgroundColor: colors.primary }]}
+              onPress={() => setShowAvatarModal(false)}
+            >
+              <Text style={styles.modalButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        </Modal>
-      </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Avatar Style Variants Modal */}
+      <Modal 
+        visible={showCategoryModal} 
+        onRequestClose={() => setShowCategoryModal(false)}
+        animationType="slide"
+        transparent
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {selectedCategory ? `${selectedCategory.charAt(0).toUpperCase()}${selectedCategory.slice(1)} Styles` : 'Avatar Styles'}
+            </Text>
+            <ScrollView contentContainerStyle={styles.avatarGrid}>
+              {categoryAvatars.map((avatar, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.avatarGridItem}
+                  onPress={() => handleAvatarSelect(avatar.url)}
+                >
+                  <Image 
+                    source={{ uri: avatar.url }} 
+                    style={styles.avatarPreview}
+                    defaultSource={require('../../assets/avatar-placeholder.png')}
+                  />
+                  <Text style={[styles.variantLabel, { color: colors.gray }]}>
+                    {avatar.style.split('-').slice(1).join(' ') || 'Default'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={styles.modalButtonGroup}>
+              <TouchableOpacity 
+                style={[styles.modalButton, { backgroundColor: colors.gray }]}
+                onPress={() => {
+                  setShowCategoryModal(false);
+                  setShowAvatarModal(true);
+                }}
+              >
+                <Text style={styles.modalButtonText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                onPress={() => setShowCategoryModal(false)}
+              >
+                <Text style={styles.modalButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Custom Prompt Modal */}
       <Modal visible={isPromptVisible} transparent={true} animationType="fade">
@@ -403,14 +505,17 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   modalButton: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: '#007BFF',
-    borderRadius: 5,
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 5,
+    alignItems: 'center',
+    backgroundColor: '#007BFF', // Moved from duplicate definition
   },
   modalButtonText: {
-    color: '#FFF',
+    color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
   },
   promptOverlay: {
     flex: 1,
@@ -454,5 +559,64 @@ const styles = StyleSheet.create({
   promptButtonText: {
     color: '#fff',
     fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '90%',
+    maxHeight: '80%',
+    borderRadius: 20,
+    padding: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    padding: 10,
+  },
+  avatarGridItem: {
+    width: '30%',
+    aspectRatio: 1,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  categoryPreview: {
+    width: '100%',
+    height: undefined,
+    aspectRatio: 1,
+    borderRadius: 15,
+    marginBottom: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  avatarPreview: {
+    width: '100%',
+    height: undefined,
+    aspectRatio: 1,
+    borderRadius: 15,
+    marginBottom: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  categoryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  variantLabel: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  modalButtonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
   },
 });

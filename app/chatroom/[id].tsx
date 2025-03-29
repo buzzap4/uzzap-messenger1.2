@@ -26,8 +26,7 @@ export default function ChatRoomScreen() {
   const { session } = useAuth();
   const { colors } = useTheme();
   const { profile, loading: profileLoading, fetchProfile } = useProfile();
-  const { messages, loading: messagesLoading, hasMore, error: messagesError, fetchMessages } = useMessages(id as string);
-  const [localMessages, setMessages] = useState<Message[]>([]);
+  const { messages, loading: messagesLoading, hasMore, error: messagesError, fetchMessages, addMessage } = useMessages(id as string);
   const flatListRef = useRef<FlatList<Message>>(null);
 
   useEffect(() => {
@@ -35,11 +34,6 @@ export default function ChatRoomScreen() {
       fetchProfile(session.user.id);
     }
   }, [session?.user?.id, fetchProfile]);
-
-  // Sync localMessages with messages from useMessages hook
-  useEffect(() => {
-    setMessages(messages);
-  }, [messages]);
 
   const handleSend = async (content: string, type: 'text' | 'image' | undefined, bubbleColor?: string) => {
     if (!session?.user?.id || !profile?.id) {
@@ -61,49 +55,22 @@ export default function ChatRoomScreen() {
           chatroom_id: id,
           content,
           user_id: session.user.id,
-          bubble_color: bubbleColor // Add the bubble color to the message
+          bubble_color: bubbleColor
         })
         .select(`
-          id,
-          content,
-          user_id,
-          chatroom_id,
-          created_at,
-          is_edited,
-          is_deleted,
-          bubble_color,
-          user:profiles!messages_user_id_fkey (*)
+          *,
+          user:profiles(*)
         `)
         .single();
 
-      if (messageError) {
-        console.error('Message error:', messageError);
-        Alert.alert('Error', 'Failed to send message');
-        return;
-      }
+      if (messageError) throw messageError;
 
-      // Immediately update local state with the new message
-      const transformedMessage: Message = {
-        ...newMessage,
-        user: {
-          id: profile.id,
-          username: profile.username,
-          avatar_url: profile.avatar_url,
-          display_name: profile.display_name,
-          status_message: profile.status_message,
-          created_at: profile.created_at,
-          updated_at: profile.updated_at,
-          role: profile.role
-        }
-      };
-
-      setMessages(currentMessages => [transformedMessage, ...currentMessages]);
+      // No need to update state here as subscription will handle it
     } catch (error) {
       Alert.alert('Error', 'Failed to send message');
     }
   };
 
-  // Update subscription handler
   const subscribeToMessages = useCallback(() => {
     const subscription = supabase
       .channel(`chatroom:${id}`)
@@ -116,23 +83,13 @@ export default function ChatRoomScreen() {
           filter: `chatroom_id=eq.${id}`,
         },
         async (payload) => {
-          const newMessage = payload.new as any;
-          
-          // Fetch complete message data including bubble_color
           const { data: messageData, error: messageError } = await supabase
             .from('messages')
             .select(`
-              id,
-              content,
-              created_at,
-              user_id,
-              chatroom_id,
-              is_edited,
-              is_deleted,
-              bubble_color,
+              *,
               user:profiles(*)
             `)
-            .eq('id', newMessage.id)
+            .eq('id', payload.new.id)
             .single();
 
           if (messageError) {
@@ -140,30 +97,20 @@ export default function ChatRoomScreen() {
             return;
           }
 
-          const userData = messageData.user?.[0];
           const transformedMessage: Message = {
-            ...messageData,
+            id: messageData.id,
+            content: messageData.content,
+            user_id: messageData.user_id,
+            chatroom_id: messageData.chatroom_id,
+            created_at: messageData.created_at,
             is_edited: messageData.is_edited || false,
             is_deleted: messageData.is_deleted || false,
-            user: {
-              id: userData?.id || messageData.user_id,
-              username: userData?.username || 'Unknown',
-              avatar_url: userData?.avatar_url || null,
-              display_name: userData?.display_name || null,
-              status_message: userData?.status_message || null,
-              created_at: userData?.created_at || messageData.created_at,
-              updated_at: userData?.updated_at || messageData.created_at,
-              role: userData?.role || 'user'
-            }
+            bubble_color: messageData.bubble_color,
+            user: Array.isArray(messageData.user) ? messageData.user[0] : messageData.user
           };
 
-          setMessages(currentMessages => {
-            const messageExists = currentMessages.some(msg => msg.id === transformedMessage.id);
-            if (!messageExists) {
-              return [transformedMessage, ...currentMessages];
-            }
-            return currentMessages;
-          });
+          // Use addMessage from useMessages hook to update state
+          addMessage(transformedMessage);
         }
       )
       .subscribe();
@@ -171,7 +118,7 @@ export default function ChatRoomScreen() {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, [id]);
+  }, [id, addMessage]);
 
   useEffect(() => {
     fetchMessages();
@@ -217,7 +164,7 @@ export default function ChatRoomScreen() {
     >
       <FlatList
         ref={flatListRef}
-        data={localMessages}
+        data={messages} // Use messages directly instead of localMessages
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         onEndReached={fetchMoreMessages}

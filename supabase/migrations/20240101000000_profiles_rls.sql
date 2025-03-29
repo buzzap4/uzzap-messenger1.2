@@ -1,32 +1,25 @@
 -- Enable RLS
 alter table profiles enable row level security;
 
--- Create policies
--- Allow users to create their own profile
-create policy "Users can create their own profile"
-on profiles for insert
-with check (auth.uid() = id);
+-- Drop ALL existing policies
+DROP POLICY IF EXISTS "Users can create their own profile" ON profiles;
+DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON profiles;
+DROP POLICY IF EXISTS "Profiles cannot be deleted" ON profiles;
+DROP POLICY IF EXISTS "Allow public read access to profiles" ON profiles;
+DROP POLICY IF EXISTS "Allow users to manage their own profile" ON profiles;
 
--- Allow users to view any profile
-create policy "Profiles are viewable by everyone"
-on profiles for select
-using (true);
+-- Create new policies
+CREATE POLICY "Allow public read access to profiles"
+ON profiles FOR SELECT
+TO authenticated
+USING (true);
 
--- Allow users to update their own profile
-create policy "Users can update own profile"
-on profiles for update
-using (auth.uid() = id)
-with check (
-  auth.uid() = id
-  AND (
-    CASE WHEN role IS NOT NULL 
-    THEN role = (SELECT role FROM profiles WHERE id = auth.uid())
-    ELSE true
-    END
-  )
-);
+CREATE POLICY "Allow users to manage their own profile"
+ON profiles FOR ALL 
+TO authenticated
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
 
--- Prevent profile deletion
-create policy "Profiles cannot be deleted"
-on profiles for delete
-using (false);
+CREATE POLICY "Profiles cannot be deleted"
+ON profiles FOR DELETE
+USING (false);

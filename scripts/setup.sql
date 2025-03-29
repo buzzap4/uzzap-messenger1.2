@@ -154,6 +154,29 @@ ON direct_messages FOR SELECT
 TO authenticated
 USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
 
+-- Add messages policies
+CREATE POLICY "Users can insert messages in joined chatrooms"
+ON messages FOR INSERT 
+TO authenticated
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM chatroom_memberships
+    WHERE chatroom_memberships.chatroom_id = messages.chatroom_id
+    AND chatroom_memberships.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can read messages from joined chatrooms"
+ON messages FOR SELECT 
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM chatroom_memberships
+    WHERE chatroom_memberships.chatroom_id = messages.chatroom_id
+    AND chatroom_memberships.user_id = auth.uid()
+  )
+);
+
 -- Create policies for chatrooms
 CREATE POLICY "Enable read access for all users" ON chatrooms
     FOR SELECT USING (true);

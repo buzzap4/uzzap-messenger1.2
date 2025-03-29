@@ -99,6 +99,13 @@ export const useMessages = (chatroomId: string) => {
     }
   }, [chatroomId]);
 
+  const addMessage = useCallback((message: Message) => {
+    setState(prev => ({
+      ...prev,
+      messages: [message, ...prev.messages]
+    }));
+  }, []);
+
   useEffect(() => {
     if (chatroomId) {
       fetchMessages();
@@ -107,6 +114,7 @@ export const useMessages = (chatroomId: string) => {
 
   return {
     ...state,
-    fetchMessages
+    fetchMessages,
+    addMessage // Export the new function
   };
 };
