@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Message, User } from '../types/models';
-
+console.log("test")
 const PAGE_SIZE = 20;
 
 export const useMessages = (chatroomId: string) => {
@@ -31,7 +31,6 @@ export const useMessages = (chatroomId: string) => {
           created_at,
           is_edited,
           is_deleted,
-          bubble_color,
           user:profiles!messages_user_id_fkey (
             id,
             username,
@@ -46,13 +45,12 @@ export const useMessages = (chatroomId: string) => {
         .eq('chatroom_id', chatroomId)
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE);
-
+      
       if (lastMessageId) {
         query = query.lt('id', lastMessageId);
       }
 
       const { data, error } = await query;
-      
       if (error) throw error;
 
       const transformedMessages: Message[] = (data || []).map(message => {
@@ -77,7 +75,6 @@ export const useMessages = (chatroomId: string) => {
           created_at: message.created_at,
           is_edited: message.is_edited || false,
           is_deleted: message.is_deleted || false,
-          bubble_color: message.bubble_color || null,
           user
         };
       });
@@ -85,7 +82,7 @@ export const useMessages = (chatroomId: string) => {
       setState(prev => ({
         messages: lastMessageId 
           ? [...prev.messages, ...transformedMessages]
-          : transformedMessages,
+          : transformedMessages, 
         hasMore: transformedMessages.length === PAGE_SIZE,
         loading: false,
         error: null

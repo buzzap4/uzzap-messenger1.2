@@ -12,6 +12,8 @@ export const sendMessage = async (content: string, chatroom_id: string) => {
         chatroom_id, 
         user_id: session.user.id 
       });
+    console.log("Sending message with:", {content, chatroom_id, userId:session.user.id})
+
 
     const { data, error } = await supabase
       .from('messages')
@@ -48,6 +50,7 @@ export const fetchMessages = async (chatroom_id: string) => {
         created_at,
         is_edited,
         is_deleted,
+
         user:profiles!messages_user_id_fkey (
           id,
           username,
@@ -61,7 +64,7 @@ export const fetchMessages = async (chatroom_id: string) => {
       `)
       .eq('chatroom_id', chatroom_id)
       .order('created_at', { ascending: false });
-
+      
     if (error) throw error;
     return { data, error: null };
   } catch (error) {

@@ -68,10 +68,9 @@ export const useChatrooms = () => {
                 updated_at
               )
             )
-          )
-        `)
+          )`).order('created_at', { ascending: false, foreignTable: 'chatroom.messages' })
         .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false, foreignTable: 'messages' })
+        .order('created_at', { ascending: false, foreignTable: 'chatroom.messages' })
         .limit(1, { foreignTable: 'messages' });
 
       if (error) throw error;

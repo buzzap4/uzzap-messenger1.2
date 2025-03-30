@@ -112,6 +112,8 @@ export default function ChatRoomScreen() {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage) {
       await fetchMessages(lastMessage.id);
+      console.log("last message", lastMessage)
+      messages.forEach((item) => console.log("item", item))
     }
   };
 
@@ -137,6 +139,7 @@ export default function ChatRoomScreen() {
     return <Text style={styles.errorText}>{messagesError}</Text>;
   }
 
+  
   const loading = profileLoading || messagesLoading;
 
   return (
