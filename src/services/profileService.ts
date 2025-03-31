@@ -23,7 +23,8 @@ export const createProfile = async (profileData: ProfileInsert): Promise<Profile
         ...profileData,
         role: profileData.role || 'user',
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        last_seen: new Date().toISOString()
       }])
       .select()
       .single();

@@ -3,14 +3,17 @@ import { StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native'
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
+import { useTheme } from '@/context/theme'; // Add this import
 import ChatMessage from '@/components/ChatMessage';
 import MessageInput from '@/components/MessageInput';
 import { FlashList } from '@shopify/flash-list';
 import { DirectMessage } from '@/src/types/models';
+import { sendPushNotification } from '@/src/services/notificationService';
 
 export default function DirectMessageScreen() {
   const { id } = useLocalSearchParams();
   const { session } = useAuth();
+  const { colors } = useTheme(); // Add this line
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [otherUserId, setOtherUserId] = useState<string | null>(null);
   const flatListRef = useRef(null);
@@ -88,7 +91,7 @@ export default function DirectMessageScreen() {
     return subscription;
   }, [fetchMessages, subscribeToMessages]);
 
-  const handleSend = async (content: string) => {
+  const handleSend = async (content: string, type?: 'text' | 'image', bubbleColor?: string) => {
     try {
       if (!session?.user?.id || !otherUserId) {
         Alert.alert('Error', 'Unable to send message');
@@ -115,6 +118,7 @@ export default function DirectMessageScreen() {
           content,
           sender_id: session.user.id,
           receiver_id: otherUserId,
+          bubble_color: bubbleColor // Add bubble color here
         })
         .select(`
           *,
@@ -128,6 +132,21 @@ export default function DirectMessageScreen() {
         throw messageError;
       }
 
+      // Get receiver's push token
+      const { data: receiverProfile } = await supabase
+        .from('profiles')
+        .select('push_token, username, notifications_enabled')
+        .eq('id', otherUserId)
+        .single();
+
+      if (receiverProfile?.push_token && receiverProfile.notifications_enabled) {
+        await sendPushNotification(
+          receiverProfile.push_token,
+          `Message from ${session?.user?.user_metadata?.username || 'Someone'}`,
+          content
+        );
+      }
+
       setMessages(current => [message, ...current]);
     } catch (error) {
       console.error('Error sending message:', error);
@@ -136,7 +155,6 @@ export default function DirectMessageScreen() {
   };
   
   const renderItem = ({ item }: { item: DirectMessage }) => {
-    
     if (!item?.sender) {
       return null;
     }
@@ -146,13 +164,14 @@ export default function DirectMessageScreen() {
         sender={item.sender}
         timestamp={item.created_at}
         isOwnMessage={item.sender.id === session?.user.id}
+        bubbleColor={item.bubble_color} // Add this line to pass the bubble color
       />
     );
   };
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]} // Add theme background color
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
@@ -171,6 +190,6 @@ export default function DirectMessageScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    // Remove the hardcoded backgroundColor here since we're setting it dynamically
   },
 });

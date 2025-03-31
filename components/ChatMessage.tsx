@@ -35,17 +35,17 @@ export default function ChatMessage({
     [sender]
   );
 
-  const bubbleStyle = {
+  const bubbleStyle = useMemo(() => ({
     ...styles.bubble,
     backgroundColor: bubbleColor || (isOwnMessage ? colors.messageOwn : colors.messageOther),
     borderTopLeftRadius: isOwnMessage ? 20 : 4,
     borderTopRightRadius: isOwnMessage ? 4 : 20,
-  };
+  }), [bubbleColor, isOwnMessage, colors.messageOwn, colors.messageOther]);
 
-  const textStyle = {
+  const textStyle = useMemo(() => ({
     ...styles.text,
     color: bubbleColor ? '#FFFFFF' : (isOwnMessage ? colors.textOwn : colors.textOther),
-  };
+  }), [bubbleColor, isOwnMessage, colors.textOwn, colors.textOther]);
 
   return (
     <Animated.View style={[styles.container, isOwnMessage && styles.ownMessageContainer]}>

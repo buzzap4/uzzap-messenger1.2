@@ -4,36 +4,30 @@ export const joinChatroom = async (chatroomId: string) => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
+      console.error('No active session found');
       throw new Error('No active session');
     }
 
-    // First check if already a member
-    const { data: existingMembership } = await supabase
-      .from('chatroom_memberships')
-      .select('*')
-      .eq('chatroom_id', chatroomId)
-      .eq('user_id', session.user.id)
-      .single();
+    console.log('Attempting to join chatroom:', chatroomId, 'for user:', session.user.id);
 
-    if (existingMembership) {
-      return { data: existingMembership, error: null };
-    }
-
-    // If not a member, insert new membership
-    const { data, error } = await supabase
+    // Try direct insert instead of RPC
+    const { error } = await supabase
       .from('chatroom_memberships')
       .insert({
         chatroom_id: chatroomId,
-        user_id: session.user.id
-      })
-      .select()
-      .single();
+        user_id: session.user.id,
+      });
 
-    if (error) throw error;
-    return { data, error: null };
+    if (error) {
+      console.error('Failed to join chatroom:', error);
+      throw error;
+    }
+
+    console.log('Successfully joined chatroom');
+    return { error: null };
   } catch (error) {
-    console.error('Error joining chatroom:', error);
-    return { data: null, error };
+    console.error('Error in joinChatroom:', error);
+    return { error };
   }
 };
 

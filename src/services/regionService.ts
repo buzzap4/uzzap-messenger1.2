@@ -1,4 +1,5 @@
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase';
+import type { Region, Province } from '../types/models';
 
 export const fetchRegions = async () => {
   try {
@@ -7,9 +8,18 @@ export const fetchRegions = async () => {
       .select(`
         id,
         name,
-        created_at
+        code,
+        order_sequence,
+        is_active,
+        provinces:provinces(
+          id,
+          name,
+          code,
+          is_active,
+          chatrooms:chatrooms(*)
+        )
       `)
-      .order('name');
+      .order('order_sequence');
 
     if (error) throw error;
     return { data, error: null };

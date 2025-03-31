@@ -14,20 +14,57 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Rate limiting
 const messageRateLimit = new Map<string, number>();
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const RATE_LIMIT_WINDOW = 60000; // 1 minuteminute
 const MAX_MESSAGES = 30; // 30 messages per minute
+// Add proper rate limiting with database storage
+export const checkRateLimit = async (userId: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('rate_limits')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('type', 'message')
+      .single();
 
-export const checkRateLimit = (userId: string): boolean => {
-  const userMessages = messageRateLimit.get(userId) || 0;
-  
-  if (userMessages >= MAX_MESSAGES) {
+    if (error) throw error;
+
+    if (!data) {
+      // Create new rate limit record
+      await supabase.from('rate_limits').insert({
+        user_id: userId,
+        type: 'message',
+        count: 1,
+        reset_at: new Date(Date.now() + RATE_LIMIT_WINDOW)
+      });
+      return true;
+    }
+
+    if (new Date(data.reset_at) < new Date()) {
+      // Reset expired rate limit
+      await supabase.from('rate_limits').upsert({
+        user_id: userId,
+        type: 'message',
+        count: 1,
+        reset_at: new Date(Date.now() + RATE_LIMIT_WINDOW)
+      });
+      return true;
+    }
+
+    if (data.count >= MAX_MESSAGES) {
+      return false;
+    }
+
+    // Increment count
+    await supabase.from('rate_limits')
+      .update({ count: data.count + 1 })
+      .eq('user_id', userId)
+      .eq('type', 'message');
+
+    return true;
+  } catch (error) {
+    console.error('Rate limit check failed:', error);
     return false;
   }
-  
-  messageRateLimit.set(userId, userMessages + 1);
-  setTimeout(() => messageRateLimit.set(userId, 0), RATE_LIMIT_WINDOW);
-  
-  return true;
 };
 
 // Error handling
@@ -36,7 +73,9 @@ export const DB_ERRORS = {
   UNIQUE_VIOLATION: '23505',
   CHECK_VIOLATION: '23514',
   NOT_NULL_VIOLATION: '23502',
-  INVALID_PARAMETER: 'PGRST116'
+  INVALID_PARAMETER: 'PGRST116',
+  PERMISSION_DENIED: '42501',
+  UNDEFINED_TABLE: '42P01'
 } as const;
 
 export const handleDatabaseError = (error: PostgrestError | null): string => {
@@ -53,6 +92,10 @@ export const handleDatabaseError = (error: PostgrestError | null): string => {
       return 'Required field is missing';
     case DB_ERRORS.INVALID_PARAMETER:
       return 'Invalid parameters provided';
+    case DB_ERRORS.PERMISSION_DENIED:
+      return 'Permission denied';
+    case DB_ERRORS.UNDEFINED_TABLE:
+      return 'Table does not exist';
     default:
       return error.message || 'An unexpected database error occurred';
   }
@@ -128,5 +171,23 @@ export const fetchUserRole = async (userId: string): Promise<string | null> => {
   } catch (error) {
     console.error('Error fetching user role:', error);
     return 'user'; // Default to 'user' role on error
+  }
+};
+
+// Session management
+export const refreshSession = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (!session || error) {
+      const { data: { session: newSession }, error: refreshError } = 
+        await supabase.auth.refreshSession();
+      
+      if (refreshError) throw refreshError;
+      return newSession;
+    }
+    return session;
+  } catch (error) {
+    console.error('Session refresh failed:', error);
+    throw error;
   }
 };

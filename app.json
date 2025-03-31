@@ -13,7 +13,9 @@
     },
     "android": {
       "package": "com.uzzap.messenger",
-      "permissions": [],
+      "permissions": [
+        "NOTIFICATIONS"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
@@ -30,6 +32,16 @@
       "eas": {
         "projectId": "7af4d924-b35a-48ad-b0d3-35e8b7cd0b51"
       }
-    }
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff",
+          "sounds": ["./assets/notification-sound.wav"]
+        }
+      ]
+    ]
   }
 }

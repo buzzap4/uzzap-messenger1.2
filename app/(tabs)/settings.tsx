@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Modal } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Modal, Alert } from 'react-native';
 import { useTheme } from '@/context/theme';
 import { Bell, Moon, Sun, Globe, Lock, Shield, HelpCircle, LogOut, Info } from 'lucide-react-native';
 import { useAuth } from '@/context/auth';
 import { supabase } from '@/lib/supabase'; // Ensure you have a Supabase client setup
 import { useRouter } from 'expo-router'; // Import router for navigation
+import { registerForPushNotifications } from '@/src/services/notificationService';
 
 export default function SettingsScreen() {
   const { setTheme, isDark, colors } = useTheme();
@@ -55,20 +56,45 @@ export default function SettingsScreen() {
 
   const toggleNotifications = async (value: boolean) => {
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session?.user) throw new Error('Failed to fetch session or user');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No active session');
+
+      if (value) {
+        const token = await registerForPushNotifications();
+        if (!token) {
+          Alert.alert('Error', 'Failed to enable notifications');
+          return;
+        }
+      }
 
       setNotificationsEnabled(value);
-      const { error } = await supabase
-        .from('user_preferences')
-        .upsert({
-          user_id: session.user.id,
-          notifications_enabled: value,
-        });
 
-      if (error) throw error;
-    } catch (err) {
-      console.error('Error updating notification preference:', err);
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/update-user-preferences`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ 
+            notifications_enabled: value,
+            theme_preference: isDark ? 'dark' : 'light'
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to update user preferences');
+      }
+
+      const result = await response.json();
+      if (result.error) {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error toggling notifications:', error);
+      Alert.alert('Error', 'Failed to update notification settings');
     }
   };
 

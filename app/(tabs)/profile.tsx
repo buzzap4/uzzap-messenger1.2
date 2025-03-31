@@ -1,11 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal, TextInput, Platform } from 'react-native';
 import { SvgUri } from 'react-native-svg';
 import { useAuth } from '@/context/auth';
-import { MessageCircle, Users, Clock, Camera } from 'lucide-react-native';
+import { MessageCircle, Users, Clock, Camera, ImagePlus, Edit2 } from 'lucide-react-native';
 import { createProfile, getProfile, updateProfile } from '@/src/services/profileService';
 import { useTheme } from '@/context/theme';
 import { handleError } from '@/lib/errorHandler';
+import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '@/lib/supabase';
+import { storageConfig } from '@/src/config/storage';
 
 interface Profile {
   id: string;
@@ -17,6 +20,7 @@ interface Profile {
   created_at: string;
   updated_at: string;
   last_seen: string | null;
+  cover_image?: string | null;
 }
 
 const DICEBEAR_STYLES = [
@@ -70,6 +74,7 @@ export default function ProfileScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryAvatars, setCategoryAvatars] = useState<AvatarOption[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [coverImage, setCoverImage] = useState<string | null>(null);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -80,7 +85,6 @@ export default function ProfileScreen() {
 
       const { data } = await getProfile(session.user.id);
       if (!data) {
-        // Create default profile with all required fields
         const defaultProfile = {
           id: session.user.id,
           username: `user_${session.user.id.slice(0, 8)}`,
@@ -89,7 +93,8 @@ export default function ProfileScreen() {
           status_message: null,
           role: 'user' as const,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          cover_image: null
         };
 
         const { data: newProfile, error: createError } = await createProfile(defaultProfile);
@@ -103,6 +108,7 @@ export default function ProfileScreen() {
         setProfile(newProfile as Profile);
       } else {
         setProfile(data as Profile);
+        setCoverImage(data.cover_image || null);
       }
     } catch (error) {
       console.error('Profile fetch error:', error);
@@ -116,7 +122,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     fetchProfile();
-  }, [fetchProfile,session?.user]);
+  }, [fetchProfile, session?.user]);
 
   const handleProfileUpdate = async (updates: Partial<Profile>) => {
     try {
@@ -148,19 +154,62 @@ export default function ProfileScreen() {
     setIsPromptVisible(false);
   };
 
-  const handleAvatarClick = async () => {
-    // Pre-load categories instead of individual avatars
-    const categories = DICEBEAR_STYLES.reduce((acc, style) => {
-      const mainCategory = style.split('-')[0];
-      if (!acc.includes(mainCategory)) acc.push(mainCategory);
-      return acc;
-    }, [] as string[]);
-    
-    setAvatarOptions(categories.map(category => ({
-      url: `https://api.dicebear.com/7.x/${category}/svg?seed=${Math.random()}`,
-      style: category
-    })));
-    setShowAvatarModal(true);
+  const pickImage = async (type: 'avatar' | 'cover') => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: type === 'avatar' ? [1, 1] : [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0].uri) {
+        const uri = result.assets[0].uri;
+        
+        // Get file extension and ensure it's valid
+        const fileExtMatch = uri.match(/\.(\w+)$/);
+        const fileExt = fileExtMatch ? fileExtMatch[1].toLowerCase() : 'jpg';
+        
+        // Generate unique filename with timestamp
+        const timestamp = new Date().getTime();
+        const fileName = `${type}_${session?.user?.id}_${timestamp}.${fileExt}`;
+        const filePath = `${type === 'avatar' ? 'avatars' : 'covers'}/${fileName}`;
+
+        // Get file type from extension
+        const mimeType = `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
+
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        
+        // Create file with proper MIME type
+        const file = new Blob([blob], { type: mimeType });
+
+        const { error: uploadError } = await supabase.storage
+          .from(storageConfig.bucketName)
+          .upload(filePath, file, { 
+            contentType: mimeType,
+            upsert: true 
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from(storageConfig.bucketName)
+          .getPublicUrl(filePath);
+
+        // Update profile with new image URL
+        if (type === 'avatar') {
+          await handleProfileUpdate({ avatar_url: publicUrl });
+          setSelectedAvatar(publicUrl);
+        } else {
+          setCoverImage(publicUrl);
+          await handleProfileUpdate({ cover_image: publicUrl });
+        }
+      }
+    } catch (error) {
+      console.error('Image upload error:', error);
+      Alert.alert('Error', 'Failed to upload image. Please try again.');
+    }
   };
 
   const handleCategorySelect = async (category: string) => {
@@ -228,13 +277,25 @@ export default function ProfileScreen() {
   }
 
   return (
-    <>
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { 
-          backgroundColor: colors.surface,
-          borderBottomColor: colors.border
-        }]}>
-          <TouchableOpacity onPress={handleAvatarClick} style={styles.avatarContainer}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.coverContainer}>
+        <Image
+          source={{
+            uri: coverImage || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809'
+          }}
+          style={styles.coverImage}
+        />
+        <TouchableOpacity 
+          style={styles.changeCoverButton}
+          onPress={() => pickImage('cover')}
+        >
+          <ImagePlus size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.profileSection, { backgroundColor: colors.surface }]}>
+        <View style={styles.avatarSection}>
+          <TouchableOpacity onPress={() => pickImage('avatar')} style={styles.avatarContainer}>
             <Image
               source={{
                 uri: selectedAvatar || profile?.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback'
@@ -244,57 +305,40 @@ export default function ProfileScreen() {
             <View style={styles.cameraButton}>
               <Camera size={20} color="#fff" />
             </View>
-          </TouchableOpacity>        
-          <TouchableOpacity onPress={() => openPrompt('display_name', 'Update Display Name', 'Display Name')}>
-            <Text style={[styles.displayName, { color: colors.text }]}>
-              {profile?.display_name || profile?.username}
-            </Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => openPrompt('username', 'Update Username', 'Username')}>
+
+          <View style={styles.nameSection}>
+            <TouchableOpacity onPress={() => openPrompt('display_name', 'Update Display Name', 'Display Name')}>
+              <Text style={[styles.displayName, { color: colors.text }]}>
+                {profile?.display_name || profile?.username}
+                <Edit2 size={16} color={colors.gray} style={styles.editIcon} />
+              </Text>
+            </TouchableOpacity>
             <Text style={[styles.username, { color: colors.gray }]}>@{profile?.username}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => openPrompt('status_message', 'Update Status Message', 'Status Message')}>
-            <Text style={[styles.status, { color: colors.gray }]}>
-              {profile?.status_message || 'Tap to set a status'}
-            </Text>
-          </TouchableOpacity>
-          <Text style={[styles.joinedDate, { color: colors.gray }]}>
-            Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : ''}
-          </Text>
+          </View>
         </View>
 
-        <View style={[styles.stats, { borderBottomColor: colors.border }]}>
-          <View style={styles.statItem}>
-            <MessageCircle size={24} color={colors.gray} />
+        <Text style={[styles.bio, { color: colors.text }]}>
+          {profile?.status_message || 'No bio yet'}
+        </Text>
+
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
             <Text style={[styles.statNumber, { color: colors.text }]}>128</Text>
             <Text style={[styles.statLabel, { color: colors.gray }]}>Messages</Text>
           </View>
-          <View style={styles.statItem}>
-            <Users size={24} color={colors.gray} />
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
             <Text style={[styles.statNumber, { color: colors.text }]}>12</Text>
             <Text style={[styles.statLabel, { color: colors.gray }]}>Rooms</Text>
           </View>
-          <View style={styles.statItem}>
-            <Clock size={24} color={colors.gray} />
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
             <Text style={[styles.statNumber, { color: colors.text }]}>45h</Text>
-            <Text style={[styles.statLabel, { color: colors.gray }]}>Time Spent</Text>
+            <Text style={[styles.statLabel, { color: colors.gray }]}>Active</Text>
           </View>
         </View>
-
-        <View style={styles.avatarOptions}>
-          {DICEBEAR_STYLES.map((category, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.avatarOptionContainer}
-              onPress={() => handleCategorySelect(category)}
-            >
-              <Text style={[styles.avatarStyleLabel, { color: colors.text }]}>
-                {category.replace(/-/g, ' ')}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
+      </View>
 
       {/* Main Avatar Categories Modal */}
       <Modal 
@@ -403,9 +447,9 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-    </>
+    </ScrollView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -424,15 +468,15 @@ const styles = StyleSheet.create({
   avatarContainer: {
     position: 'relative',
     alignSelf: 'center',
-    justifyContent: 'center', // Center the avatar vertically
-    alignItems: 'center',    // Center the avatar horizontally
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginBottom: 16,
-    backgroundColor: '#f5f5f5', // Add fallback background color
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: '#fff',
   },
   cameraButton: {
     position: 'absolute',
@@ -450,37 +494,75 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 4,
   },
   username: {
     fontSize: 16,
-    marginTop: 4,
   },
-  status: {
+  bio: {
     fontSize: 16,
-    marginTop: 8,
+    marginBottom: 20,
+    lineHeight: 24,
   },
-  joinedDate: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  stats: {
+  statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    padding: 20,
-    borderBottomWidth: 1,
-  },
-  statItem: {
     alignItems: 'center',
-    marginHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 12,
+  },
+  stat: {
+    alignItems: 'center',
   },
   statNumber: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginTop: 4,
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
-    color: '#666',
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+  },
+  editIcon: {
+    marginLeft: 8,
+  },
+  coverContainer: {
+    height: 200,
+    width: '100%',
+    position: 'relative',
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  changeCoverButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 8,
+    borderRadius: 20,
+  },
+  profileSection: {
+    marginTop: -50,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+  },
+  avatarSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 20,
+  },
+  nameSection: {
+    marginLeft: 20,
+    flex: 1,
   },
   errorText: {
     color: '#ff3b30',
@@ -524,7 +606,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginHorizontal: 5,
     alignItems: 'center',
-    backgroundColor: '#007BFF', // Moved from duplicate definition
+    backgroundColor: '#007BFF',
   },
   modalButtonText: {
     color: '#fff',

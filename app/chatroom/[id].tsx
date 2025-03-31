@@ -1,23 +1,22 @@
-import React, { useEffect, useRef, useCallback } from 'react';
-import { FlatList, StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Text, View } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Alert, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
 import { useTheme } from '@/context/theme';
+import { useProfile } from '@/src/hooks/useProfile';
+import { useMessages } from '@/src/hooks/useMessages'; // Add this import
+import { Message } from '@/src/types/models';
 import ChatMessage from '@/components/ChatMessage';
 import MessageInput from '@/components/MessageInput';
-import { useProfile } from '@/src/hooks/useProfile';
-import { useMessages } from '@/src/hooks/useMessages';
-import { Message } from '@/src/types/models';
 import { verifyOrJoinChatroom } from '@/src/services/chatroomService';
 
-// Ensure hooks are called unconditionally
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuth();
   const { colors } = useTheme();
   const { profile, loading: profileLoading, fetchProfile } = useProfile();
-  const { messages, loading: messagesLoading, hasMore, error: messagesError, fetchMessages, addMessage } = useMessages(id as string);
+  const { messages, loading: messagesLoading, hasMore, error: messagesError, refresh: fetchMessages, addMessage } = useMessages(id as string);
   const flatListRef = useRef<FlatList<Message>>(null);
 
   useEffect(() => {
@@ -39,7 +38,24 @@ export default function ChatRoomScreen() {
         return;
       }
 
-      const { error: messageError } = await supabase
+      // Add immediate optimistic update with a temporary ID
+      const tempId = 'temp-' + Date.now();
+      const optimisticMessage: Message = {
+        id: tempId,
+        content,
+        user_id: session.user.id,
+        chatroom_id: id,
+        created_at: new Date().toISOString(),
+        is_edited: false,
+        is_deleted: false,
+        bubble_color: bubbleColor,
+        user: profile
+      };
+
+      // Add the message optimistically
+      addMessage(optimisticMessage);
+
+      const { data: newMessage, error: messageError } = await supabase
         .from('messages')
         .insert({
           chatroom_id: id,
@@ -47,26 +63,53 @@ export default function ChatRoomScreen() {
           user_id: session.user.id,
           bubble_color: bubbleColor,
         })
-        .select()
+        .select(`
+          *,
+          profiles:profiles!messages_user_id_fkey (*)
+        `)
         .single();
 
       if (messageError) throw messageError;
-    } catch {
+
+      // Don't add the server message since we already have the optimistic one
+      // Just log success
+      console.log('Message sent successfully:', newMessage);
+    } catch (error) {
+      console.error('Failed to send message:', error);
       Alert.alert('Error', 'Failed to send message');
+      // Could add message removal here if the send fails
+      // setMessages(messages => messages.filter(m => m.id !== tempId));
     }
   };
 
   const subscribeToMessages = useCallback(() => {
     if (!id) return () => {};
-    const subscription = supabase
-      .channel(`chatroom:${id}`)
+    
+    const channel = supabase.channel(`chatroom:${id}`);
+    
+    const subscription = channel
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `chatroom_id=eq.${id}` },
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'messages', 
+          filter: `chatroom_id=eq.${id}` 
+        },
         async (payload) => {
+          console.log('New message received:', payload.new);
+          
+          // Only process messages from other users
+          if (payload.new.user_id === session?.user?.id) {
+            return;
+          }
+
           const { data: messageData, error: messageError } = await supabase
             .from('messages')
-            .select('*, user:profiles(*)')
+            .select(`
+              *,
+              profiles:profiles!messages_user_id_fkey (*)
+            `)
             .eq('id', payload.new.id)
             .single();
 
@@ -75,27 +118,29 @@ export default function ChatRoomScreen() {
             return;
           }
 
-          const transformedMessage: Message = {
-            id: messageData.id,
-            content: messageData.content,
-            user_id: messageData.user_id,
-            chatroom_id: messageData.chatroom_id,
-            created_at: messageData.created_at,
-            is_edited: messageData.is_edited || false,
-            is_deleted: messageData.is_deleted || false,
-            bubble_color: messageData.bubble_color,
-            user: Array.isArray(messageData.user) ? messageData.user[0] : messageData.user,
-          };
+          if (messageData) {
+            const transformedMessage: Message = {
+              id: messageData.id,
+              content: messageData.content,
+              user_id: messageData.user_id,
+              chatroom_id: messageData.chatroom_id,
+              created_at: messageData.created_at,
+              is_edited: messageData.is_edited || false,
+              is_deleted: messageData.is_deleted || false,
+              bubble_color: messageData.bubble_color,
+              user: Array.isArray(messageData.profiles) ? messageData.profiles[0] : messageData.profiles
+            };
 
-          addMessage(transformedMessage);
+            addMessage(transformedMessage);
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(subscription);
+      channel.unsubscribe();
     };
-  }, [id, addMessage]);
+  }, [id, session?.user?.id, addMessage]);
 
   useEffect(() => {
     if (id) {
@@ -111,9 +156,13 @@ export default function ChatRoomScreen() {
     if (!hasMore || messagesLoading) return;
     const lastMessage = messages[messages.length - 1];
     if (lastMessage) {
+<<<<<<< HEAD
       await fetchMessages(lastMessage.id);
       console.log("last message", lastMessage)
       messages.forEach((item) => console.log("item", item))
+=======
+      await fetchMessages();
+>>>>>>> c589710 (Pre-build configuration updates)
     }
   };
 

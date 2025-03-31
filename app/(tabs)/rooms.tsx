@@ -5,10 +5,20 @@ import { supabase } from '@/lib/supabase';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import RegionDropdown from '@/components/RegionDropdown';
 import { MapPin, MessageCircle, Users, LogIn, LogOut } from 'lucide-react-native';
-import { Region, Province } from '@/types/Region';
 import { useTheme } from '@/context/theme';
 import { useAuth } from '@/context/auth';
 import { joinChatroom, leaveChatroom, isUserInChatroom } from '@/src/services/chatroomService';
+import type { Region, Province } from '@/types/Region';
+
+interface ExtendedProvince extends Province {
+  chatrooms?: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    is_active: boolean;
+    max_members: number;
+  }>;
+}
 
 export default function RoomsScreen() {
   const router = useRouter();
@@ -18,75 +28,113 @@ export default function RoomsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
-  const [membershipStatus, setMembershipStatus] = useState<{[key: string]: boolean}>({});
+  const [membershipStatus, setMembershipStatus] = useState<{ [key: string]: boolean }>({});
   const [joiningRoom, setJoiningRoom] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<{ [key: string]: boolean }>({});
   const [chatMessages, setChatMessages] = useState<{ [key: string]: number }>({});
 
-  const fetchRegions = async () => {
+  const createDefaultChatroom = async (provinceId: string, provinceName: string) => {
     try {
-      if (!session?.user?.id) {
-        throw new Error('Not authenticated');
+      // Check if chatroom already exists
+      const { data: existingChatroom, error: checkError } = await supabase
+        .from('chatrooms')
+        .select('*')
+        .eq('province_id', provinceId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking existing chatroom:', checkError);
+        throw checkError;
       }
 
-      const { data: regions, error: regionsError } = await supabase
+      if (existingChatroom) {
+        return existingChatroom;
+      }
+
+      // Create new chatroom
+      const { data, error } = await supabase
+        .from('chatrooms')
+        .insert({
+          name: `${provinceName} Chat Room`,
+          description: `Official chat room for ${provinceName}`,
+          province_id: provinceId,
+          is_active: true,
+          max_members: 1000
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error details:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error creating chatroom:', error);
+      return null;
+    }
+  };
+
+  const fetchRegions = async () => {
+    try {
+      const { data: regionsData, error: regionsError } = await supabase
         .from('regions')
         .select(`
           id,
           name,
+          code,
+          order_sequence,
           provinces:provinces (
             id,
             name,
+            code,
             chatrooms:chatrooms (
               id,
-              name
+              name,
+              description,
+              is_active,
+              max_members
             )
           )
         `)
-        .order('name');
+        .eq('is_active', true)
+        .order('order_sequence');
 
       if (regionsError) throw regionsError;
 
-      // Fix the data transformation to match types
-      const processedRegions: Region[] = regions?.map(region => ({
-        id: region.id,
-        name: region.name,
-        provinces: region.provinces.map(province => ({
-          id: province.id,
-          name: province.name,
-          chatrooms: province.chatrooms ? [province.chatrooms].flat() : []
-        }))
-      })) || [];
-
-      // Create missing chatrooms
-      for (const region of processedRegions) {
+      // Process regions sequentially to avoid overwhelming the server
+      const processedRegions = [];
+      for (const region of regionsData || []) {
+        const processedProvinces = [];
         for (const province of region.provinces) {
-          if (!province.chatrooms?.length) {
-            try {
-              const { data: chatroom, error: chatError } = await supabase
-                .from('chatrooms')
-                .upsert({
-                  name: `${province.name} Chat`,
-                  province_id: province.id
-                })
-                .select()
-                .single();
-
-              if (chatError) {
-                throw chatError;
-              } else {
-                province.chatrooms = [chatroom];
-              }
-            } catch (err) {
-              throw err;
-            }
+          if (!province.chatrooms || province.chatrooms.length === 0) {
+            console.log('Creating chatroom for province:', province.name);
+            const chatroom = await createDefaultChatroom(province.id, province.name);
+            processedProvinces.push({
+              ...province,
+              chatrooms: chatroom ? [chatroom] : []
+            });
+          } else {
+            processedProvinces.push({
+              ...province,
+              chatrooms: province.chatrooms.filter(chatroom => chatroom.is_active)
+            });
           }
         }
+        processedRegions.push({
+          ...region,
+          provinces: processedProvinces
+        });
       }
 
       setRegions(processedRegions);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      if (processedRegions.length > 0 && !selectedRegion) {
+        setSelectedRegion(processedRegions[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching regions:', error);
+      setError('Failed to load regions');
     } finally {
       setLoading(false);
     }
@@ -94,7 +142,7 @@ export default function RoomsScreen() {
 
   useEffect(() => {
     fetchRegions();
-  }, [fetchRegions]);
+  }, []);
 
   useEffect(() => {
     const initializeMembershipStatus = async () => {
@@ -150,7 +198,6 @@ export default function RoomsScreen() {
       setJoiningRoom(chatroomId);
       await joinChatroom(chatroomId);
       setMembershipStatus(prev => ({ ...prev, [chatroomId]: true }));
-      // Auto-navigate after joining
       router.push(`/chatroom/${chatroomId}`);
     } catch (error) {
       console.error('Error joining room:', error);
@@ -171,20 +218,21 @@ export default function RoomsScreen() {
     }
   };
 
-  const handleProvincePress = async (province: Province) => {
+  const handleProvincePress = async (province: ExtendedProvince) => {
     const chatroomId = province.chatrooms?.[0]?.id;
-    const isMember = chatroomId ? membershipStatus[chatroomId] : false;
 
     if (!chatroomId) {
       Alert.alert('No Chatroom', `No chat room available for ${province.name}`);
       return;
     }
 
+    const isMember = membershipStatus[chatroomId];
+
     try {
       if (isMember) {
         await router.push({
           pathname: '/chatroom/[id]',
-          params: { id: chatroomId }
+          params: { id: chatroomId },
         });
       } else {
         Alert.alert(
@@ -199,10 +247,15 @@ export default function RoomsScreen() {
               text: 'Join',
               onPress: async () => {
                 try {
-                  await handleJoinRoom(chatroomId);
+                  setJoiningRoom(chatroomId); // Indicate joining state
+                  await joinChatroom(chatroomId); // Call joinChatroom service
+                  setMembershipStatus((prev) => ({ ...prev, [chatroomId]: true })); // Update membership status
+                  router.push(`/chatroom/${chatroomId}`); // Navigate to chatroom
                 } catch (error) {
                   console.error('Failed to join room:', error);
                   Alert.alert('Error', 'Failed to join the room. Please try again.');
+                } finally {
+                  setJoiningRoom(null); // Reset joining state
                 }
               },
             },
@@ -210,14 +263,14 @@ export default function RoomsScreen() {
         );
       }
     } catch (error) {
-      console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to open the chatroom. Please try again.');
+      console.error('Error handling province press:', error);
+      Alert.alert('Error', 'An unexpected error occurred.');
     }
   };
 
-  const filteredProvinces = selectedRegion
-    ? regions.find(r => r.id === selectedRegion.id)?.provinces || []
-    : regions.flatMap(r => r.provinces);
+  const filteredProvinces: ExtendedProvince[] = selectedRegion
+    ? regions.find(r => r.id === selectedRegion.id)?.provinces as ExtendedProvince[] || []
+    : regions.flatMap(r => r.provinces) as ExtendedProvince[];
 
   if (error) {
     return (
@@ -235,12 +288,22 @@ export default function RoomsScreen() {
     );
   }
 
-  const renderProvinceItem = ({ item }: { item: Province }) => {
+  const renderProvinceItem = ({ item }: { item: ExtendedProvince }) => {
     const chatroomId = item.chatrooms?.[0]?.id;
     const isMember = chatroomId ? membershipStatus[chatroomId] : false;
     const isJoining = joiningRoom === chatroomId;
     const onlineCount = Object.keys(onlineUsers).length;
     const messageCount = chatroomId ? chatMessages[chatroomId] || 0 : 0;
+
+    console.log('Province:', item.name, 'ChatroomId:', chatroomId, 'IsMember:', isMember);
+
+    if (!chatroomId) {
+      console.log('No chatroom available for province:', item.name);
+    }
+
+    if (chatroomId) {
+      console.log('Rendering join button for:', item.name);
+    }
 
     return (
       <TouchableOpacity
@@ -277,14 +340,26 @@ export default function RoomsScreen() {
               { backgroundColor: isMember ? '#dc3545' : '#28a745' }
             ]}
             disabled={isJoining}
-            onPress={() => isMember ? handleLeaveRoom(chatroomId) : handleJoinRoom(chatroomId)}
+            onPress={() => {
+              isMember ? handleLeaveRoom(chatroomId) : handleJoinRoom(chatroomId);
+            }}
           >
             {isJoining ? (
               <ActivityIndicator size="small" color="#fff" />
-            ) : isMember ? (
-              <LogOut size={20} color="#fff" />
             ) : (
-              <LogIn size={20} color="#fff" />
+              <View style={styles.buttonContent}>
+                {isMember ? (
+                  <>
+                    <LogOut size={20} color="#fff" />
+                    <Text style={styles.buttonText}>Leave</Text>
+                  </>
+                ) : (
+                  <>
+                    <LogIn size={20} color="#fff" />
+                    <Text style={styles.buttonText}>Join</Text>
+                  </>
+                )}
+              </View>
             )}
           </TouchableOpacity>
         )}
@@ -299,11 +374,11 @@ export default function RoomsScreen() {
         <RegionDropdown
           regions={regions}
           selectedRegion={selectedRegion}
-          onSelect={(region: Region) => setSelectedRegion(region)}
+          onSelect={setSelectedRegion}
         />
       </View>
 
-      <FlatList
+      <FlatList<ExtendedProvince>
         data={filteredProvinces}
         renderItem={renderProvinceItem}
         keyExtractor={(item) => item.id}
@@ -428,11 +503,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   roomButton: {
-    width: 40,
+    minWidth: 80,
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+    paddingHorizontal: 16,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    marginLeft: 4,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  roomDescription: {
+    fontSize: 12,
+    marginTop: 4,
+    opacity: 0.7,
+  },
+  roomMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  badge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 12,
   },
 });
