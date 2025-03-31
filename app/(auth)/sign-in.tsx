@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Animated, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Animated, Image, Alert } from 'react-native';
 import { Link, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock } from 'lucide-react-native';
@@ -29,6 +29,7 @@ const useDynamicStyles = (colors: any) =>
       borderRadius: 8,
       padding: Platform.OS === 'ios' ? 12 : 8,
       color: colors.text, // Adjust text color dynamically
+      transform: [{ scale: 1 }],
     },
     container: {
       flex: 1,
@@ -45,17 +46,14 @@ const useDynamicStyles = (colors: any) =>
       height: 180, // Further increased height
     },
     formContainer: {
-      padding: 20,
-      borderRadius: 12,
-      shadowColor: '#000',
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-      elevation: 5,
+      padding: 24,
+      borderRadius: 16,
+      backgroundColor: colors.surface,
+      boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+      elevation: 8,
       width: '100%',
+      maxWidth: 400,
+      transform: [{ scale: 1 }],
     },
     title: {
       fontSize: 24,
@@ -74,6 +72,7 @@ const useDynamicStyles = (colors: any) =>
       borderRadius: 8,
       alignItems: 'center',
       marginTop: 8,
+      transform: [{ scale: 1 }],
     },
     buttonDisabled: {
       backgroundColor: '#ccc',
@@ -130,6 +129,15 @@ const useDynamicStyles = (colors: any) =>
       height: '100%',
       backgroundColor: '#28A745', // Match button color
       borderRadius: 4,
+      boxShadow: '0px 0px 8px rgba(40, 167, 69, 0.3)',
+    },
+    forgotPasswordButton: {
+      alignSelf: 'flex-end',
+      marginBottom: 20,
+    },
+    forgotPasswordText: {
+      color: '#007AFF',
+      fontSize: 14,
     },
   });
 
@@ -138,12 +146,14 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const animatedValues = useRef([...Array(5)].map(() => new Animated.Value(0))).current; // 5 letters in "Uzzap"
   const { showToast } = useToast();
   const { colors } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current; // Animation value for fading
   const [currentStep, setCurrentStep] = useState(0); // Track the current step
   const progressAnim = useRef(new Animated.Value(0)).current; // Animation value for progress bar
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const styles = useDynamicStyles(colors);
 
   const steps = ['Connecting', 'Authenticating', 'Initializing'];
@@ -185,6 +195,33 @@ export default function SignIn() {
 
     animateSteps();
   }, [fadeAnim, progressAnim, steps.length]); // Added missing dependencies
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      tension: 40,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.97,
+      tension: 40,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      tension: 40,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const renderLogo = () => (
     <View style={styles.logoContainer}>
@@ -258,8 +295,40 @@ export default function SignIn() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    try {
+      if (!email) {
+        throw new Error('Please enter your email address');
+      }
+
+      setLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'myapp://reset-password',
+      });
+
+      if (error) throw error;
+
+      Alert.alert(
+        'Password Reset',
+        'If an account exists for this email, you will receive password reset instructions.'
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'An unknown error occurred';
+      showToast(message, 'error');
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <Animated.View 
+      style={[
+        styles.container, 
+        { backgroundColor: colors.background },
+        { transform: [{ scale: scaleAnim }] }
+      ]}
+    >
       {renderLogo()}
       {renderProgressBar()}
       <View style={[styles.formContainer, { backgroundColor: colors.surface }]}>
@@ -302,11 +371,27 @@ export default function SignIn() {
         </View>
 
         <TouchableOpacity
+          style={styles.forgotPasswordButton}
+          onPress={handleForgotPassword}
+          disabled={loading}
+        >
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleSignIn}
           disabled={loading}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
+          {loading ? (
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <ActivityIndicator color="#fff" />
+            </Animated.View>
+          ) : (
+            <Text style={styles.buttonText}>Sign In</Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.footer}>
@@ -316,7 +401,7 @@ export default function SignIn() {
           </Link>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

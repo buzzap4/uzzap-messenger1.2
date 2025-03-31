@@ -9,6 +9,7 @@ import MessageInput from '@/components/MessageInput';
 import { FlashList } from '@shopify/flash-list';
 import { DirectMessage } from '@/src/types/models';
 import { sendPushNotification } from '@/src/services/notificationService';
+import { RealtimeChannel } from '@supabase/supabase-js'; // Add this import
 
 export default function DirectMessageScreen() {
   const { id } = useLocalSearchParams();
@@ -63,33 +64,71 @@ export default function DirectMessageScreen() {
   }, [id]);
 
   const subscribeToMessages = useCallback(() => {
-    const subscription = supabase
-      .channel('direct_messages')
+    if (!id) return () => {};
+
+    const channelId = `direct-message:${id}`;
+    const channel = supabase.channel(channelId);
+    
+    channel
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'direct_messages',
-          filter: `conversation_id=eq.${id}`,
+          filter: `conversation_id=eq.${id}`
         },
-        (payload) => {
-          const newMessage = payload.new as DirectMessage;
-          setMessages((current) => [newMessage, ...current]);
+        async (payload: { new: any; old: any; }) => {
+          // Ensure payload.new exists and has required properties
+          if (!payload.new || typeof payload.new.sender_id === 'undefined') {
+            return;
+          }
+
+          // Skip if message is from current user
+          if (payload.new.sender_id === session?.user?.id) {
+            return;
+          }
+
+          try {
+            const { data: messageData } = await supabase
+              .from('direct_messages')
+              .select(`
+                *,
+                sender:profiles!sender_id(*),
+                receiver:profiles!receiver_id(*)
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (messageData) {
+              setMessages(current => [messageData, ...current]);
+            }
+          } catch (error) {
+            console.error('Error fetching message details:', error);
+          }
         }
       )
-      .subscribe();
+      .subscribe(status => {
+        if (status !== 'SUBSCRIBED') {
+          console.error('Failed to subscribe to direct messages');
+        }
+      });
 
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(channel);
     };
-  }, [id]);
+  }, [id, session?.user?.id]);
 
   useEffect(() => {
+    if (!id) return;
+    
     fetchMessages();
-    const subscription = subscribeToMessages();
-    return subscription;
-  }, [fetchMessages, subscribeToMessages]);
+    const unsubscribe = subscribeToMessages();
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [id, fetchMessages, subscribeToMessages]);
 
   const handleSend = async (content: string, type?: 'text' | 'image', bubbleColor?: string) => {
     try {

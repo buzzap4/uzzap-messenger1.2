@@ -10,6 +10,9 @@ import { Message } from '@/src/types/models';
 import ChatMessage from '@/components/ChatMessage';
 import MessageInput from '@/components/MessageInput';
 import { verifyOrJoinChatroom } from '@/src/services/chatroomService';
+import { RefreshControl } from '@/components/RefreshControl';
+import { useRefresh } from '@/hooks/useRefresh';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,6 +21,13 @@ export default function ChatRoomScreen() {
   const { profile, loading: profileLoading, fetchProfile } = useProfile();
   const { messages, loading: messagesLoading, hasMore, error: messagesError, refresh: fetchMessages, addMessage } = useMessages(id as string);
   const flatListRef = useRef<FlatList<Message>>(null);
+
+  const { refreshing, handleRefresh } = useRefresh(async () => {
+    await Promise.all([
+      fetchProfile(session?.user?.id || ''),
+      fetchMessages()
+    ]);
+  });
 
   useEffect(() => {
     if (id && session?.user?.id) {
@@ -71,74 +81,72 @@ export default function ChatRoomScreen() {
 
       if (messageError) throw messageError;
 
-      // Don't add the server message since we already have the optimistic one
-      // Just log success
-      console.log('Message sent successfully:', newMessage);
+      // Skip optimistic update since we already have it
     } catch (error) {
-      console.error('Failed to send message:', error);
       Alert.alert('Error', 'Failed to send message');
-      // Could add message removal here if the send fails
-      // setMessages(messages => messages.filter(m => m.id !== tempId));
     }
   };
 
   const subscribeToMessages = useCallback(() => {
     if (!id) return () => {};
     
-    const channel = supabase.channel(`chatroom:${id}`);
+    const channelId = `chatroom:${id}`;
+    const channel = supabase.channel(channelId);
     
-    const subscription = channel
+    channel
       .on(
         'postgres_changes',
         { 
-          event: 'INSERT', 
+          event: '*', 
           schema: 'public', 
-          table: 'messages', 
-          filter: `chatroom_id=eq.${id}` 
+          table: 'messages',
+          filter: `chatroom_id=eq.${id}`
         },
-        async (payload) => {
-          console.log('New message received:', payload.new);
-          
-          // Only process messages from other users
+        async (payload: { new: any; old: any; }) => {
+          // Ensure payload.new exists and has required properties
+          if (!payload.new || typeof payload.new.user_id === 'undefined') {
+            return;
+          }
+
+          // Skip if message is from current user
           if (payload.new.user_id === session?.user?.id) {
             return;
           }
 
-          const { data: messageData, error: messageError } = await supabase
-            .from('messages')
-            .select(`
-              *,
-              profiles:profiles!messages_user_id_fkey (*)
-            `)
-            .eq('id', payload.new.id)
-            .single();
+          try {
+            const { data: messageData } = await supabase
+              .from('messages')
+              .select(`*, profiles:profiles!messages_user_id_fkey (*)`)
+              .eq('id', payload.new.id)
+              .single();
 
-          if (messageError) {
-            console.error('Error fetching message:', messageError);
-            return;
-          }
-
-          if (messageData) {
-            const transformedMessage: Message = {
-              id: messageData.id,
-              content: messageData.content,
-              user_id: messageData.user_id,
-              chatroom_id: messageData.chatroom_id,
-              created_at: messageData.created_at,
-              is_edited: messageData.is_edited || false,
-              is_deleted: messageData.is_deleted || false,
-              bubble_color: messageData.bubble_color,
-              user: Array.isArray(messageData.profiles) ? messageData.profiles[0] : messageData.profiles
-            };
-
-            addMessage(transformedMessage);
+            if (messageData) {
+              const transformedMessage: Message = {
+                id: messageData.id,
+                content: messageData.content,
+                user_id: messageData.user_id,
+                chatroom_id: messageData.chatroom_id,
+                created_at: messageData.created_at,
+                is_edited: messageData.is_edited || false,
+                is_deleted: messageData.is_deleted || false,
+                bubble_color: messageData.bubble_color,
+                user: messageData.profiles
+              };
+              addMessage(transformedMessage);
+            }
+          } catch (error) {
+            console.error('Error fetching message details:', error);
           }
         }
       )
-      .subscribe();
+      .subscribe(status => {
+        if (status !== 'SUBSCRIBED') {
+          console.error('Failed to subscribe to messages');
+        }
+      });
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [id, session?.user?.id, addMessage]);
 
@@ -188,18 +196,26 @@ export default function ChatRoomScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <FlatList
         ref={flatListRef}
-        data={messages}
+        data={Platform.OS === 'web' ? [...messages].reverse() : messages}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         onEndReached={fetchMoreMessages}
         onEndReachedThreshold={0.5}
         ListFooterComponent={loading ? <ActivityIndicator /> : null}
-        inverted
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+          />
+        }
+        inverted={Platform.OS !== 'web'}
+        style={Platform.OS === 'web' ? styles.webList : undefined}
+        contentContainerStyle={Platform.OS === 'web' ? styles.webListContent : undefined}
       />
       <MessageInput onSend={handleSend} disabled={!profile || loading} />
     </KeyboardAvoidingView>
@@ -216,4 +232,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontSize: 16,
   },
+  webList: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  webListContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+  }
 });

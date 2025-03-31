@@ -15,6 +15,23 @@ export default function BlockedUsersScreen() {
   const { colors } = useTheme();
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
 
+  const handleUnblock = async (blockedUserId: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_blocks')
+        .delete()
+        .eq('blocked_user_id', blockedUserId);
+
+      if (error) throw error;
+
+      setBlockedUsers((prev) =>
+        prev.filter((user) => user.blocked_user_id !== blockedUserId)
+      );
+    } catch (err) {
+      console.error('Error unblocking user:', err);
+    }
+  };
+
   useEffect(() => {
     const fetchBlockedUsers = async () => {
       try {
@@ -57,7 +74,7 @@ export default function BlockedUsersScreen() {
             <Text style={[styles.username, { color: colors.text }]}>
               {item.profiles.username}
             </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => handleUnblock(item.blocked_user_id)}>
               <Text style={[styles.unblockButton, { color: colors.primary }]}>
                 Unblock
               </Text>

@@ -88,7 +88,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const completeOnboarding = async () => {
-    router.replace('/');
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ onboarding_completed: true })
+        .eq('id', session?.user?.id);
+      
+      if (error) throw error;
+      router.replace('/');
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+      throw error;
+    }
   };
 
   if (loading) {

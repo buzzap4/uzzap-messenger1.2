@@ -112,6 +112,78 @@ export const useMessages = (chatroomId: string) => {
     }
   }, [chatroomId]);
 
+  const refresh = useCallback(async () => {
+    setState(prev => ({ ...prev, loading: true }));
+    try {
+      const { data: rawData, error } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          content,
+          created_at,
+          is_edited,
+          is_deleted,
+          chatroom_id,
+          user_id,
+          bubble_color,
+          profiles!messages_user_id_fkey (
+            id,
+            username,
+            avatar_url,
+            display_name,
+            status_message,
+            role,
+            created_at,
+            updated_at
+          )
+        `)
+        .eq('chatroom_id', chatroomId)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
+
+      if (error) throw error;
+
+      const messages = (rawData as unknown as MessageRow[])?.map(message => {
+        const userProfile: User = {
+          id: message.profiles.id,
+          username: message.profiles.username,
+          avatar_url: message.profiles.avatar_url,
+          display_name: message.profiles.display_name || undefined,
+          status_message: message.profiles.status_message || undefined,
+          role: message.profiles.role,
+          created_at: message.profiles.created_at,
+          updated_at: message.profiles.updated_at
+        };
+
+        return {
+          id: message.id,
+          content: message.content,
+          user_id: message.user_id,
+          created_at: message.created_at,
+          chatroom_id: message.chatroom_id,
+          is_edited: message.is_edited || false,
+          is_deleted: message.is_deleted || false,
+          bubble_color: message.bubble_color || undefined,
+          user: userProfile
+        } satisfies Message;
+      }) || [];
+
+      setState({
+        messages,
+        loading: false,
+        hasMore: messages.length === PAGE_SIZE,
+        error: null
+      });
+    } catch (error) {
+      console.error('Error refreshing messages:', error);
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to refresh messages'
+      }));
+    }
+  }, [chatroomId]);
+
   const addMessage = useCallback((message: Message) => {
     setState(prev => ({
       ...prev,
@@ -121,7 +193,7 @@ export const useMessages = (chatroomId: string) => {
 
   return {
     ...state,
-    refresh: loadMessages,
+    refresh,
     addMessage
   };
 };

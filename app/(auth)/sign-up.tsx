@@ -8,14 +8,15 @@ const useDynamicStyles = (colors: any) =>
   StyleSheet.create({
     input: {
       width: '100%',
-      padding: 15,
-      borderRadius: 8,
-      marginVertical: 10,
+      padding: 16,
+      borderRadius: 12,
+      marginVertical: 8,
       fontSize: 16,
-      borderWidth: 1,
-      borderColor: colors.border, // Adjust border color dynamically
-      color: colors.text, // Adjust text color dynamically
-      backgroundColor: colors.inputBackground, // Adjust background color dynamically
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: colors.inputBackground,
+      boxShadow: '0px 2px 4px rgba(0,0,0,0.05)',
+      elevation: 2,
     },
     inputIcon: {
       marginRight: 8,
@@ -41,11 +42,13 @@ const useDynamicStyles = (colors: any) =>
     },
     button: {
       width: '100%',
-      padding: 15,
-      backgroundColor: '#28A745', // Changed to green
-      borderRadius: 8,
+      padding: 16,
+      backgroundColor: '#28A745',
+      borderRadius: 12,
       alignItems: 'center',
-      marginVertical: 10,
+      marginVertical: 16,
+      boxShadow: '0px 4px 8px rgba(40,167,69,0.2)',
+      elevation: 4,
     },
     buttonText: {
       color: '#fff',
@@ -78,11 +81,15 @@ const useDynamicStyles = (colors: any) =>
 export default function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const animatedValues = useRef([...Array(5)].map(() => new Animated.Value(0))).current; // 5 letters in "Uzzap"
+  const slideAnim = useRef(new Animated.Value(-50)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
   const { colors } = useTheme();
   const styles = useDynamicStyles(colors);
 
@@ -94,6 +101,20 @@ export default function SignUp() {
         useNativeDriver: true,
       })
     )).start();
+
+    Animated.parallel([
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 40,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, [animatedValues]);
 
   const renderLogo = () => (
@@ -106,14 +127,35 @@ export default function SignUp() {
     </View>
   );
 
+  const validatePassword = (password: string) => {
+    if (password.length < 8) return 'Password must be at least 8 characters';
+    if (!/[A-Z]/.test(password)) return 'Password must contain an uppercase letter';
+    if (!/[a-z]/.test(password)) return 'Password must contain a lowercase letter';
+    if (!/[0-9]/.test(password)) return 'Password must contain a number';
+    return null;
+  };
+
   const handleSignUp = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Validate inputs
-      if (!email || !password || !username) {
+      // Enhanced validation
+      if (!email || !password || !username || !confirmPassword) {
         throw new Error('Please fill in all fields');
+      }
+
+      if (password !== confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        throw new Error(passwordError);
+      }
+
+      if (!email.includes('@')) {
+        throw new Error('Please enter a valid email address');
       }
 
       // Check if username already exists
@@ -145,7 +187,6 @@ export default function SignUp() {
       // Optionally, navigate to the sign-in page
       router.replace('/sign-in');
     } catch (error) {
-      console.error('Sign up error:', error);
       if (error instanceof Error) {
         Alert.alert('Error', error.message);
         setError(error.message);
@@ -159,7 +200,16 @@ export default function SignUp() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <Animated.View 
+      style={[
+        styles.container,
+        { 
+          backgroundColor: colors.background,
+          transform: [{ translateY: slideAnim }],
+          opacity: opacityAnim,
+        }
+      ]}
+    >
       {renderLogo()}
       {error && (
         <Text style={styles.error}>{error}</Text>
@@ -199,13 +249,24 @@ export default function SignUp() {
         value={password}
         onChangeText={setPassword}
       />
+      <TextInput
+        style={[
+          styles.input,
+          { backgroundColor: colors.inputBackground, color: colors.text },
+        ]}
+        placeholder="Confirm Password"
+        placeholderTextColor={colors.gray}
+        secureTextEntry
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+      />
       <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign Up</Text>}
       </TouchableOpacity>
       <Link href="/sign-in" style={styles.link}>
         <Text style={styles.linkText}>Already have an account? Sign In</Text>
       </Link>
-    </View>
+    </Animated.View>
   );
 }
 

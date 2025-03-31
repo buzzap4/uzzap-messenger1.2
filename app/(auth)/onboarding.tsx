@@ -16,6 +16,7 @@ export default function OnboardingScreen() {
   const [displayName, setDisplayName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const { session, completeOnboarding } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarSeed, setAvatarSeed] = useState('');
@@ -63,7 +64,34 @@ export default function OnboardingScreen() {
     setAvatarUrl(`${DEFAULT_AVATAR_URL}?seed=${avatarSeed}&backgroundColor=random`);
   };
 
+  const checkUsernameAvailability = async (username: string) => {
+    if (!username.trim()) return;
+    setIsCheckingUsername(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username.trim())
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+      if (data) {
+        Alert.alert('Error', 'Username already taken');
+        setUsername('');
+      }
+    } catch (error) {
+      const { message } = handleError(error);
+      Alert.alert('Error', message);
+    } finally {
+      setIsCheckingUsername(false);
+    }
+  };
+
   const handleSubmit = async () => {
+    if (loading) return;
+    
     try {
       setLoading(true);
 
@@ -77,11 +105,23 @@ export default function OnboardingScreen() {
         return;
       }
 
+      // Final username check before submission
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username.trim())
+        .single();
+
+      if (existingUser) {
+        Alert.alert('Error', 'Username already taken');
+        return;
+      }
+
       const { data, error } = await createProfile({
         id: session.user.id,
         username: username.trim(),
         display_name: displayName.trim(),
-        avatar_url: avatarUrl || null,
+        avatar_url: avatarUrl || DEFAULT_AVATAR_URL,
         status_message: null,
         role: 'user',
       });
@@ -166,8 +206,10 @@ export default function OnboardingScreen() {
             placeholder="Username"
             value={username}
             onChangeText={setUsername}
-            autoCapitalize="none"
+            onBlur={() => checkUsernameAvailability(username)}
+            editable={!loading}
           />
+          {isCheckingUsername && <ActivityIndicator size="small" />}
         </View>
 
         <View style={styles.inputContainer}>
@@ -183,7 +225,7 @@ export default function OnboardingScreen() {
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleSubmit}
-          disabled={loading}
+          disabled={loading || isCheckingUsername}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />

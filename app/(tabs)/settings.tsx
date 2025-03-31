@@ -6,14 +6,23 @@ import { useAuth } from '@/context/auth';
 import { supabase } from '@/lib/supabase'; // Ensure you have a Supabase client setup
 import { useRouter } from 'expo-router'; // Import router for navigation
 import { registerForPushNotifications } from '@/src/services/notificationService';
+import { useLanguage } from '@/context/language';
 
 export default function SettingsScreen() {
   const { setTheme, isDark, colors } = useTheme();
   const { signOut } = useAuth();
+  const { language, setLanguage } = useLanguage();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [helpCenterVisible, setHelpCenterVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
+  const [languageModalVisible, setLanguageModalVisible] = useState(false);
   const router = useRouter();
+
+  const languages = [
+    { code: 'en', name: 'English' },
+    { code: 'fil', name: 'Filipino' },
+    { code: 'ceb', name: 'Cebuano' }
+  ];
 
   useEffect(() => {
     const fetchNotificationPreference = async () => {
@@ -240,6 +249,16 @@ export default function SettingsScreen() {
       lineHeight: 24,
       marginLeft: 8,
     },
+    languageOption: {
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    languageText: {
+      fontSize: 16,
+      fontWeight: '600',
+    },
   });
 
   const renderSettingItem = (
@@ -268,11 +287,17 @@ export default function SettingsScreen() {
           'Toggle dark mode theme',
           <Switch value={isDark} onValueChange={toggleTheme} />
         )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Language</Text>
         {renderSettingItem(
           <Globe size={24} color={colors.gray} />,
           'Language',
-          'Change app language',
-          <Text style={styles.actionText}>English</Text>
+          'Change application language',
+          <TouchableOpacity onPress={() => setLanguageModalVisible(true)}>
+            <Text style={styles.actionButton}>{language.toUpperCase()}</Text>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -429,6 +454,29 @@ export default function SettingsScreen() {
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={languageModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLanguageModalVisible(false)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>Select Language</Text>
+          {languages.map((lang) => (
+            <TouchableOpacity
+              key={lang.code}
+              style={styles.languageOption}
+              onPress={() => {
+                setLanguage(lang.code as 'en' | 'fil' | 'ceb');
+                setLanguageModalVisible(false);
+              }}
+            >
+              <Text style={[styles.languageText, { color: colors.text }]}>{lang.name}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </Modal>
     </ScrollView>

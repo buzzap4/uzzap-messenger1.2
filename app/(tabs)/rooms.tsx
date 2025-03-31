@@ -109,7 +109,6 @@ export default function RoomsScreen() {
         const processedProvinces = [];
         for (const province of region.provinces) {
           if (!province.chatrooms || province.chatrooms.length === 0) {
-            console.log('Creating chatroom for province:', province.name);
             const chatroom = await createDefaultChatroom(province.id, province.name);
             processedProvinces.push({
               ...province,
@@ -295,16 +294,6 @@ export default function RoomsScreen() {
     const onlineCount = Object.keys(onlineUsers).length;
     const messageCount = chatroomId ? chatMessages[chatroomId] || 0 : 0;
 
-    console.log('Province:', item.name, 'ChatroomId:', chatroomId, 'IsMember:', isMember);
-
-    if (!chatroomId) {
-      console.log('No chatroom available for province:', item.name);
-    }
-
-    if (chatroomId) {
-      console.log('Rendering join button for:', item.name);
-    }
-
     return (
       <TouchableOpacity
         key={item.id}
@@ -433,14 +422,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    elevation: 5, // Keep elevation for Android
   },
   provinceImage: {
     width: 48,

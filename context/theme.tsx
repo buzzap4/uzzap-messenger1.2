@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
+import { storage } from '@/lib/storage';
 
 export type Theme = 'light' | 'dark';
 
@@ -61,17 +62,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(systemColorScheme || 'light');
 
   useEffect(() => {
-    // Update theme based on system changes
-    if (systemColorScheme) {
-      setTheme(systemColorScheme);
-    }
-  }, [systemColorScheme]);
+    storage.getItem<Theme>('userTheme').then((savedTheme) => {
+      if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
+        setTheme(savedTheme);
+      }
+    });
+  }, []);
+
+  const changeTheme = (newTheme: Theme) => {
+    setTheme(newTheme);
+    storage.setItem('userTheme', newTheme);
+  };
 
   const isDark = theme === 'dark';
   const themeColors = isDark ? colors.dark : colors.light;
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, colors: themeColors, isDark }}>
+    <ThemeContext.Provider value={{ theme, setTheme: changeTheme, colors: themeColors, isDark }}>
       {children}
     </ThemeContext.Provider>
   );
