@@ -38,6 +38,8 @@ export const registerForPushNotifications = async () => {
       Notifications.setNotificationChannelAsync('default', {
         name: 'default',
         importance: Notifications.AndroidImportance.HIGH,
+        sound: 'notification_sound', // Add this line - references R.raw.notification_sound
+        vibrationPattern: [0, 250, 250, 250],
       });
     }
 

@@ -1,10 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Message, User } from '../types/models';
-<<<<<<< HEAD
-console.log("test")
+
 const PAGE_SIZE = 20;
-=======
 
 // Update the database response type to match Supabase's structure
 interface MessageRow {
@@ -27,7 +25,6 @@ interface MessageRow {
     updated_at: string;
   };
 }
->>>>>>> c589710 (Pre-build configuration updates)
 
 export const useMessages = (chatroomId: string) => {
   const [state, setState] = useState<{
@@ -54,14 +51,10 @@ export const useMessages = (chatroomId: string) => {
           created_at,
           is_edited,
           is_deleted,
-<<<<<<< HEAD
-          user:profiles!messages_user_id_fkey (
-=======
           chatroom_id,
           user_id,
           bubble_color,
           profiles!messages_user_id_fkey (
->>>>>>> c589710 (Pre-build configuration updates)
             id,
             username,
             avatar_url,
@@ -74,18 +67,8 @@ export const useMessages = (chatroomId: string) => {
         `)
         .eq('chatroom_id', chatroomId)
         .order('created_at', { ascending: false })
-<<<<<<< HEAD
         .limit(PAGE_SIZE);
-      
-      if (lastMessageId) {
-        query = query.lt('id', lastMessageId);
-      }
 
-      const { data, error } = await query;
-=======
-        .limit(20);
-
->>>>>>> c589710 (Pre-build configuration updates)
       if (error) throw error;
 
       const messages = (rawData as unknown as MessageRow[])?.map(message => {
@@ -93,8 +76,8 @@ export const useMessages = (chatroomId: string) => {
           id: message.profiles.id,
           username: message.profiles.username,
           avatar_url: message.profiles.avatar_url,
-          display_name: message.profiles.display_name || undefined, // Convert null to undefined
-          status_message: message.profiles.status_message || undefined, // Convert null to undefined
+          display_name: message.profiles.display_name || undefined,
+          status_message: message.profiles.status_message || undefined,
           role: message.profiles.role,
           created_at: message.profiles.created_at,
           updated_at: message.profiles.updated_at
@@ -108,27 +91,15 @@ export const useMessages = (chatroomId: string) => {
           chatroom_id: message.chatroom_id,
           is_edited: message.is_edited || false,
           is_deleted: message.is_deleted || false,
-<<<<<<< HEAD
-          user
-        };
-      });
-
-      setState(prev => ({
-        messages: lastMessageId 
-          ? [...prev.messages, ...transformedMessages]
-          : transformedMessages, 
-        hasMore: transformedMessages.length === PAGE_SIZE,
-=======
-          bubble_color: message.bubble_color || undefined, // Handle bubble_color properly
+          bubble_color: message.bubble_color || undefined,
           user: userProfile
         } satisfies Message;
       }) || [];
 
       setState({
         messages,
->>>>>>> c589710 (Pre-build configuration updates)
         loading: false,
-        hasMore: messages.length === 20,
+        hasMore: messages.length === PAGE_SIZE,
         error: null
       });
     } catch (error) {

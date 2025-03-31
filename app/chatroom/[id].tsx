@@ -156,13 +156,7 @@ export default function ChatRoomScreen() {
     if (!hasMore || messagesLoading) return;
     const lastMessage = messages[messages.length - 1];
     if (lastMessage) {
-<<<<<<< HEAD
-      await fetchMessages(lastMessage.id);
-      console.log("last message", lastMessage)
-      messages.forEach((item) => console.log("item", item))
-=======
       await fetchMessages();
->>>>>>> c589710 (Pre-build configuration updates)
     }
   };
 
