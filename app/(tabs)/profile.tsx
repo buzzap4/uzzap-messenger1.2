@@ -140,10 +140,10 @@ export default function ProfileScreen() {
     }
   };
 
-  const openPrompt = (field: keyof Profile, title: string, placeholder: string) => {
+  const openPrompt = (field: keyof Profile, title: string, placeholder: string, currentValue?: string) => {
     setPromptField(field);
     setPromptTitle(title);
-    setPromptValue(profile?.[field] || placeholder);
+    setPromptValue(currentValue || profile?.[field]?.toString() || placeholder);
     setIsPromptVisible(true);
   };
 
@@ -308,19 +308,31 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           <View style={styles.nameSection}>
-            <TouchableOpacity onPress={() => openPrompt('display_name', 'Update Display Name', 'Display Name')}>
+            <TouchableOpacity onPress={() => openPrompt('display_name', 'Update Display Name', 'Display Name', profile?.display_name || '')}>
               <Text style={[styles.displayName, { color: colors.text }]}>
                 {profile?.display_name || profile?.username}
                 <Edit2 size={16} color={colors.gray} style={styles.editIcon} />
               </Text>
             </TouchableOpacity>
-            <Text style={[styles.username, { color: colors.gray }]}>@{profile?.username}</Text>
+            
+            <TouchableOpacity onPress={() => openPrompt('username', 'Update Username', 'Username', profile?.username)}>
+              <Text style={[styles.username, { color: colors.gray }]}>
+                @{profile?.username}
+                <Edit2 size={16} color={colors.gray} style={styles.editIcon} />
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        <Text style={[styles.bio, { color: colors.text }]}>
-          {profile?.status_message || 'No bio yet'}
-        </Text>
+        <TouchableOpacity 
+          onPress={() => openPrompt('status_message', 'Update Bio', 'Add a bio...', profile?.status_message || '')}
+          style={styles.bioContainer}
+        >
+          <Text style={[styles.bio, { color: colors.text }]}>
+            {profile?.status_message || 'No bio yet'}
+            <Edit2 size={16} color={colors.gray} style={styles.editIcon} />
+          </Text>
+        </TouchableOpacity>
 
         <View style={styles.statsRow}>
           <View style={styles.stat}>
@@ -711,5 +723,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 20,
+  },
+  bioContainer: {
+    marginTop: 10,
+    padding: 10,
   },
 });

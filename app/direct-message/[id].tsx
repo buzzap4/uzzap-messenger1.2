@@ -1,25 +1,35 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'; 
-import { StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native'; 
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, KeyboardAvoidingView, Platform, Alert, Modal, TouchableOpacity, View } from 'react-native';
+import { GiftedChat, IMessage, Send, Bubble, InputToolbar, Actions, Composer } from 'react-native-gifted-chat';
+import { MaterialIcons } from '@expo/vector-icons';
+import EmojiSelector from 'react-native-emoji-selector';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
-import { useTheme } from '@/context/theme'; // Add this import
-import ChatMessage from '@/components/ChatMessage';
-import MessageInput from '@/components/MessageInput';
-import { FlashList } from '@shopify/flash-list';
-import { DirectMessage } from '@/src/types/models';
+import { useTheme } from '@/context/theme';
 import { sendPushNotification } from '@/src/services/notificationService';
-import { RealtimeChannel } from '@supabase/supabase-js'; // Add this import
+import { DirectMessage } from '@/src/types/models';
+import { ChatMessage } from '@/src/types/chat';
 
 export default function DirectMessageScreen() {
   const { id } = useLocalSearchParams();
   const { session } = useAuth();
-  const { colors } = useTheme(); // Add this line
+  const { colors } = useTheme();
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [otherUserId, setOtherUserId] = useState<string | null>(null);
-  const flatListRef = useRef(null);
+  const [isEmojiPickerVisible, setIsEmojiPickerVisible] = useState(false);
+  const [composerText, setComposerText] = useState('');
+  const [currentBubbleColor, setCurrentBubbleColor] = useState(colors.primary);
 
-  // Add effect to fetch other user's ID
+  const bubbleColors = [
+    colors.primary,
+    '#FF69B4', // pink
+    '#4169E1', // royal blue
+    '#32CD32', // lime green
+    '#FF8C00', // dark orange
+    '#8A2BE2', // blue violet
+  ];
+
   useEffect(() => {
     const fetchOtherUser = async () => {
       try {
@@ -68,7 +78,7 @@ export default function DirectMessageScreen() {
 
     const channelId = `direct-message:${id}`;
     const channel = supabase.channel(channelId);
-    
+
     channel
       .on(
         'postgres_changes',
@@ -78,13 +88,11 @@ export default function DirectMessageScreen() {
           table: 'direct_messages',
           filter: `conversation_id=eq.${id}`
         },
-        async (payload: { new: any; old: any; }) => {
-          // Ensure payload.new exists and has required properties
+        async (payload: { new: any; old: any }) => {
           if (!payload.new || typeof payload.new.sender_id === 'undefined') {
             return;
           }
 
-          // Skip if message is from current user
           if (payload.new.sender_id === session?.user?.id) {
             return;
           }
@@ -121,23 +129,22 @@ export default function DirectMessageScreen() {
 
   useEffect(() => {
     if (!id) return;
-    
+
     fetchMessages();
     const unsubscribe = subscribeToMessages();
-    
+
     return () => {
       unsubscribe();
     };
   }, [id, fetchMessages, subscribeToMessages]);
 
-  const handleSend = async (content: string, type?: 'text' | 'image', bubbleColor?: string) => {
+  const handleSendMessage = async (content: string, type?: 'text' | 'image', bubbleColor?: string) => {
     try {
       if (!session?.user?.id || !otherUserId) {
         Alert.alert('Error', 'Unable to send message');
         return;
       }
 
-      // First verify conversation exists and user is part of it
       const { data: conversation, error: conversationError } = await supabase
         .from('conversations')
         .select('id')
@@ -157,7 +164,7 @@ export default function DirectMessageScreen() {
           content,
           sender_id: session.user.id,
           receiver_id: otherUserId,
-          bubble_color: bubbleColor // Add bubble color here
+          bubble_color: bubbleColor
         })
         .select(`
           *,
@@ -171,7 +178,6 @@ export default function DirectMessageScreen() {
         throw messageError;
       }
 
-      // Get receiver's push token
       const { data: receiverProfile } = await supabase
         .from('profiles')
         .select('push_token, username, notifications_enabled')
@@ -192,43 +198,198 @@ export default function DirectMessageScreen() {
       Alert.alert('Error', 'Failed to send message');
     }
   };
-  
-  const renderItem = ({ item }: { item: DirectMessage }) => {
-    if (!item?.sender) {
-      return null;
-    }
+
+  const transformToGiftedMessage = (message: DirectMessage): ChatMessage => {
+    return {
+      _id: message.id,
+      text: message.content,
+      createdAt: new Date(message.created_at),
+      user: {
+        _id: message.sender.id,
+        name: message.sender.username,
+        avatar: message.sender.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${message.sender.id}`
+      },
+      bubble_color: message.bubble_color
+    };
+  };
+
+  const onSend = useCallback(async (messages: IMessage[]) => {
+    const [message] = messages;
+    await handleSendMessage(message.text, 'text', currentBubbleColor);
+  }, [handleSendMessage, currentBubbleColor]);
+
+  const renderBubble = (props: any) => {
+    const currentMessage = props.currentMessage as IMessage & { bubble_color?: string };
     return (
-      <ChatMessage
-        content={item.content}
-        sender={item.sender}
-        timestamp={item.created_at}
-        isOwnMessage={item.sender.id === session?.user.id}
-        bubbleColor={item.bubble_color} // Add this line to pass the bubble color
+      <Bubble
+        {...props}
+        wrapperStyle={{
+          right: {
+            backgroundColor: currentMessage?.bubble_color || colors.primary
+          },
+          left: {
+            backgroundColor: colors.surface
+          }
+        }}
+        textStyle={{
+          right: {
+            color: '#fff'
+          },
+          left: {
+            color: colors.text
+          }
+        }}
       />
     );
   };
 
+  const renderActions = (props: any) => (
+    <Actions
+      {...props}
+      containerStyle={{
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 4,
+        marginRight: 4,
+        marginBottom: 0,
+      }}
+      icon={() => (
+        <MaterialIcons name="emoji-emotions" size={24} color={colors.text} />
+      )}
+      onPressActionButton={() => setIsEmojiPickerVisible(true)}
+    />
+  );
+
+  const renderComposer = (props: any) => (
+    <Composer
+      {...props}
+      textInputStyle={{
+        color: colors.text,
+        backgroundColor: colors.surface,
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        marginLeft: 0,
+      }}
+    />
+  );
+
+  const renderInputToolbar = (props: any) => (
+    <InputToolbar
+      {...props}
+      containerStyle={{
+        backgroundColor: colors.surface,
+        borderTopColor: colors.border,
+        padding: 8,
+      }}
+      primaryStyle={{ alignItems: 'center' }}
+      renderActions={renderActions}
+      renderComposer={renderComposer}
+    />
+  );
+
+  const renderSend = (props: any) => (
+    <Send
+      {...props}
+      containerStyle={{
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 15,
+        marginBottom: 5
+      }}
+    >
+      <MaterialIcons name="send" size={24} color={colors.primary} />
+    </Send>
+  );
+
+  const renderBubbleColors = () => (
+    <View style={styles.bubbleColorContainer}>
+      {bubbleColors.map((color) => (
+        <TouchableOpacity
+          key={color}
+          style={[styles.colorOption, { backgroundColor: color }]}
+          onPress={() => setCurrentBubbleColor(color)}
+        />
+      ))}
+    </View>
+  );
+
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]} // Add theme background color
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <FlashList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderItem}
-        estimatedItemSize={80}
+      <GiftedChat
+        messages={messages.map(transformToGiftedMessage)}
+        onSend={onSend}
+        user={{
+          _id: session?.user?.id || '',
+          name: session?.user?.user_metadata?.username || 'Me',
+          avatar: session?.user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session?.user?.id}`
+        }}
+        text={composerText}
+        onInputTextChanged={setComposerText}
+        renderBubble={renderBubble}
+        renderInputToolbar={renderInputToolbar}
+        renderSend={renderSend}
+        showAvatarForEveryMessage={true}
+        renderAvatarOnTop={true}
+        showUserAvatar={true}
+        alwaysShowSend
+        scrollToBottomComponent={() => null}
         inverted={true}
+        renderUsernameOnMessage={true}
       />
-      <MessageInput onSend={handleSend} />
+      {renderBubbleColors()}
+      <Modal
+        visible={isEmojiPickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsEmojiPickerVisible(false)}
+      >
+        <View style={styles.emojiPickerContainer}>
+          <EmojiSelector
+            onEmojiSelected={(emoji) => {
+              setComposerText(prev => prev + emoji);
+              setIsEmojiPickerVisible(false);
+            }}
+            showSearchBar={false}
+            columns={8}
+          />
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
-  ); 
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // Remove the hardcoded backgroundColor here since we're setting it dynamically
+  },
+  emojiPickerContainer: {
+    flex: 1,
+    backgroundColor: 'white',
+    marginTop: 'auto',
+    height: '50%',
+  },
+  bubbleColorContainer: {
+    flexDirection: 'row',
+    padding: 8,
+    justifyContent: 'space-around',
+    backgroundColor: 'transparent',
+    position: 'absolute',
+    bottom: 60,
+    left: 0,
+    right: 0,
+  },
+  colorOption: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: 'white',
   },
 });

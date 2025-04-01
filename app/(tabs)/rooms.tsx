@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import FloatingActionButton from '@/components/FloatingActionButton';
@@ -393,6 +393,9 @@ const styles = StyleSheet.create({
   header: {
     padding: 16,
     borderBottomWidth: 1,
+    paddingTop: Platform.OS === 'android' ? 30 : 16,
+    minHeight: Platform.OS === 'android' ? 80 : 60,
+    justifyContent: 'center',
   },
   title: {
     fontSize: 24,

@@ -33,9 +33,11 @@ const useDynamicStyles = (colors: any) =>
     },
     container: {
       flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
+      justifyContent: 'center', // Center content vertically
+      alignItems: 'center', // Center content horizontally
+      paddingHorizontal: 20, // Add horizontal padding
+      paddingBottom: 40, // Add padding to ensure content is visible
+      backgroundColor: colors.background, // Ensure background color matches theme
     },
     logoContainer: {
       flexDirection: 'row',
@@ -46,13 +48,13 @@ const useDynamicStyles = (colors: any) =>
       height: 180, // Further increased height
     },
     formContainer: {
-      padding: 24,
-      borderRadius: 16,
+      width: '100%',
+      maxWidth: 400, // Limit the width for better readability
+      padding: 20,
+      borderRadius: 8,
       backgroundColor: colors.surface,
       boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
       elevation: 8,
-      width: '100%',
-      maxWidth: 400,
       transform: [{ scale: 1 }],
     },
     title: {
@@ -83,10 +85,10 @@ const useDynamicStyles = (colors: any) =>
       fontWeight: '600',
     },
     footer: {
+      marginTop: 20, // Add spacing between form and footer
+      alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'center', // Center align the text
-      alignItems: 'center', // Vertically align the text
-      marginTop: 24,
     },
     footerText: {
       color: '#666',

@@ -4,9 +4,9 @@ export interface User {
   avatar_url: string | null;
   display_name?: string;
   status_message?: string;
+  role?: string;
   created_at: string;
   updated_at: string;
-  role: 'user' | 'admin' | 'moderator';
 }
 
 export interface Profile extends User {
@@ -53,13 +53,14 @@ export interface DirectMessage {
   id: string;
   content: string;
   created_at: string;
+  conversation_id: string;
   sender_id: string;
   receiver_id: string;
-  conversation_id: string;
-  read_at: string | null;
   bubble_color?: string;
-  sender?: Profile;
-  receiver?: Profile;
+  is_edited?: boolean;
+  is_deleted?: boolean;
+  sender: User;
+  receiver: User;
 }
 
 export interface ApiResponse<T> {

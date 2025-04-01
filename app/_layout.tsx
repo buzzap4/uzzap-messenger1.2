@@ -15,16 +15,53 @@ SplashScreen.preventAutoHideAsync();
 function StackNavigator() {
   const { colors } = useTheme();
   return (
-    <Stack 
-      screenOptions={{ 
+    <Stack
+      screenOptions={{
         headerShown: true,
         header: () => <Header />,
         contentStyle: {
           backgroundColor: colors.background
-        }
-      }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: true }} />
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} /> {/* Hide header for auth */}
+        },
+        animation: 'slide_from_right',
+      }}
+    >
+      <Stack.Screen 
+        name="(tabs)" 
+        options={{ headerShown: true }} 
+      />
+      <Stack.Screen 
+        name="(auth)" 
+        options={{ headerShown: false }} 
+      />
+      <Stack.Screen 
+        name="chatroom/[id]" 
+        options={{ 
+          headerShown: true,
+          presentation: 'card'  // Changed from 'push' to 'card'
+        }} 
+      />
+      <Stack.Screen 
+        name="direct-message/[id]" 
+        options={{ 
+          headerShown: true,
+          presentation: 'card'  // Changed from 'push' to 'card'
+        }} 
+      />
+      <Stack.Screen 
+        name="new-message" 
+        options={{ 
+          headerShown: true,
+          presentation: 'modal'
+        }} 
+      />
+      <Stack.Screen 
+        name="privacy-settings" 
+        options={{ headerShown: true }} 
+      />
+      <Stack.Screen 
+        name="blocked-users" 
+        options={{ headerShown: true }} 
+      />
     </Stack>
   );
 }

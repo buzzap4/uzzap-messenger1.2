@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Alert, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Text, KeyboardAvoidingView, Platform, Alert, Modal, TouchableOpacity } from 'react-native';
+import { GiftedChat, IMessage, Bubble, InputToolbar, Send, Actions, Composer } from 'react-native-gifted-chat';
+import { MaterialIcons } from '@expo/vector-icons';
+import EmojiSelector from 'react-native-emoji-selector';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/auth';
 import { useTheme } from '@/context/theme';
 import { useProfile } from '@/src/hooks/useProfile';
-import { useMessages } from '@/src/hooks/useMessages'; // Add this import
-import { Message } from '@/src/types/models';
-import ChatMessage from '@/components/ChatMessage';
-import MessageInput from '@/components/MessageInput';
+import { useMessages } from '@/src/hooks/useMessages';
 import { verifyOrJoinChatroom } from '@/src/services/chatroomService';
-import { RefreshControl } from '@/components/RefreshControl';
-import { useRefresh } from '@/hooks/useRefresh';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { Message as DatabaseMessage, User } from '@/src/types/models';
+import { ChatMessage } from '@/src/types/chat';
+import TypingIndicator from '@/components/TypingIndicator';
 
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,14 +20,23 @@ export default function ChatRoomScreen() {
   const { colors } = useTheme();
   const { profile, loading: profileLoading, fetchProfile } = useProfile();
   const { messages, loading: messagesLoading, hasMore, error: messagesError, refresh: fetchMessages, addMessage } = useMessages(id as string);
-  const flatListRef = useRef<FlatList<Message>>(null);
 
-  const { refreshing, handleRefresh } = useRefresh(async () => {
-    await Promise.all([
-      fetchProfile(session?.user?.id || ''),
-      fetchMessages()
-    ]);
-  });
+  const [isEmojiPickerVisible, setIsEmojiPickerVisible] = useState(false);
+  const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
+  const [composerText, setComposerText] = useState('');
+  const [currentBubbleColor, setCurrentBubbleColor] = useState(colors.primary);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+
+  const bubbleColors = [
+    colors.primary,
+    '#FF69B4', // pink
+    '#4169E1', // royal blue
+    '#32CD32', // lime green
+    '#FF8C00', // dark orange
+    '#8A2BE2', // blue violet
+  ];
 
   useEffect(() => {
     if (id && session?.user?.id) {
@@ -35,7 +44,33 @@ export default function ChatRoomScreen() {
     }
   }, [id, session?.user?.id, fetchProfile]);
 
-  const handleSend = async (content: string, type: 'text' | 'image' | undefined, bubbleColor?: string) => {
+  useEffect(() => {
+    const typingChannel = supabase.channel(`typing:${id}`)
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload.userId !== session?.user?.id) {
+          setTypingUsers(prev => new Set(prev).add(payload.userId));
+          // Clear typing indicator after 3 seconds
+          setTimeout(() => {
+            setTypingUsers(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(payload.userId);
+              return newSet;
+            });
+          }, 3000);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(typingChannel);
+    };
+  }, [id, session?.user?.id]);
+
+  const getFallbackAvatar = (userId: string) => {
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}&backgroundColor=random`;
+  };
+
+  const handleSendMessage = async (content: string, type: 'text' | 'image' = 'text', bubbleColor?: string) => {
     if (!id || !session?.user?.id || !profile?.id) {
       Alert.alert('Error', 'Please sign in to send messages');
       return;
@@ -48,9 +83,8 @@ export default function ChatRoomScreen() {
         return;
       }
 
-      // Add immediate optimistic update with a temporary ID
       const tempId = 'temp-' + Date.now();
-      const optimisticMessage: Message = {
+      const optimisticMessage: DatabaseMessage = {
         id: tempId,
         content,
         user_id: session.user.id,
@@ -62,7 +96,6 @@ export default function ChatRoomScreen() {
         user: profile
       };
 
-      // Add the message optimistically
       addMessage(optimisticMessage);
 
       const { data: newMessage, error: messageError } = await supabase
@@ -80,85 +113,131 @@ export default function ChatRoomScreen() {
         .single();
 
       if (messageError) throw messageError;
-
-      // Skip optimistic update since we already have it
     } catch (error) {
       Alert.alert('Error', 'Failed to send message');
     }
   };
 
-  const subscribeToMessages = useCallback(() => {
-    if (!id) return () => {};
-    
-    const channelId = `chatroom:${id}`;
-    const channel = supabase.channel(channelId);
-    
-    channel
-      .on(
-        'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'messages',
-          filter: `chatroom_id=eq.${id}`
-        },
-        async (payload: { new: any; old: any; }) => {
-          // Ensure payload.new exists and has required properties
-          if (!payload.new || typeof payload.new.user_id === 'undefined') {
-            return;
-          }
+  const handleSend = async (messages: IMessage[]) => {
+    const [message] = messages;
+    await handleSendMessage(message.text, 'text', currentBubbleColor);
+  };
 
-          // Skip if message is from current user
-          if (payload.new.user_id === session?.user?.id) {
-            return;
-          }
-
-          try {
-            const { data: messageData } = await supabase
-              .from('messages')
-              .select(`*, profiles:profiles!messages_user_id_fkey (*)`)
-              .eq('id', payload.new.id)
-              .single();
-
-            if (messageData) {
-              const transformedMessage: Message = {
-                id: messageData.id,
-                content: messageData.content,
-                user_id: messageData.user_id,
-                chatroom_id: messageData.chatroom_id,
-                created_at: messageData.created_at,
-                is_edited: messageData.is_edited || false,
-                is_deleted: messageData.is_deleted || false,
-                bubble_color: messageData.bubble_color,
-                user: messageData.profiles
-              };
-              addMessage(transformedMessage);
-            }
-          } catch (error) {
-            console.error('Error fetching message details:', error);
-          }
-        }
-      )
-      .subscribe(status => {
-        if (status !== 'SUBSCRIBED') {
-          console.error('Failed to subscribe to messages');
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
+  const transformToGiftedMessage = (message: DatabaseMessage): ChatMessage => {
+    const messageUser = message.user || {
+      id: message.user_id,
+      username: 'Unknown',
+      avatar_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
-  }, [id, session?.user?.id, addMessage]);
 
-  useEffect(() => {
-    if (id) {
-      fetchMessages();
-      const unsubscribe = subscribeToMessages();
-      return () => {
-        unsubscribe();
-      };
+    return {
+      _id: message.id,
+      text: message.content,
+      createdAt: new Date(message.created_at),
+      user: {
+        _id: messageUser.id,
+        name: messageUser.username,
+        avatar: messageUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${messageUser.id}`
+      },
+      bubble_color: message.bubble_color
+    };
+  };
+
+  const onSend = useCallback(async (messages: IMessage[]) => {
+    await handleSend(messages);
+  }, [handleSend]);
+
+  const handleInputTextChanged = (text: string) => {
+    setComposerText(text);
+    
+    if (!isTyping) {
+      setIsTyping(true);
+      supabase.channel(`typing:${id}`).send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: session?.user?.id }
+      });
     }
-  }, [id, fetchMessages, subscribeToMessages]);
+
+    // Reset typing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+    }, 3000);
+  };
+
+  const renderBubble = (props: any) => {
+    const currentMessage = props.currentMessage as IMessage & { bubble_color?: string };
+    return (
+      <Bubble
+        {...props}
+        wrapperStyle={{
+          right: {
+            backgroundColor: currentMessage?.bubble_color || colors.primary
+          },
+          left: {
+            backgroundColor: colors.surface
+          }
+        }}
+        textStyle={{
+          right: {
+            color: '#fff'
+          },
+          left: {
+            color: colors.text
+          }
+        }}
+      />
+    );
+  };
+
+  const renderActions = (props: any) => (
+    <Actions
+      {...props}
+      containerStyle={styles.actionButton}
+      icon={() => (
+        <MaterialIcons name="emoji-emotions" size={24} color={colors.text} />
+      )}
+      onPressActionButton={() => setIsEmojiPickerVisible(true)}
+    />
+  );
+
+  const renderComposer = (props: any) => (
+    <Composer
+      {...props}
+      textInputStyle={[styles.composer, { color: colors.text, backgroundColor: colors.surface }]}
+    />
+  );
+
+  const renderInputToolbar = (props: any) => (
+    <InputToolbar
+      {...props}
+      containerStyle={[styles.inputToolbar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}
+      primaryStyle={{ alignItems: 'center' }}
+      renderActions={renderActions}
+      renderComposer={renderComposer}
+    />
+  );
+
+  const renderSend = (props: any) => (
+    <View style={styles.sendContainer}>
+      <TouchableOpacity 
+        style={[styles.colorButton, { backgroundColor: currentBubbleColor }]}
+        onPress={() => setIsColorPickerVisible(true)}
+      >
+        <MaterialIcons name="color-lens" size={20} color="#fff" />
+      </TouchableOpacity>
+      <Send
+        {...props}
+        containerStyle={styles.sendButton}
+      />
+    </View>
+  );
 
   const fetchMoreMessages = async () => {
     if (!hasMore || messagesLoading) return;
@@ -168,30 +247,15 @@ export default function ChatRoomScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: Message }) => (
-    <ChatMessage
-      content={item.content}
-      sender={item.user ?? { id: item.user_id, username: 'Unknown', avatar_url: null }}
-      timestamp={item.created_at}
-      isOwnMessage={item.user_id === session?.user?.id}
-      bubbleColor={item.bubble_color}
-    />
-  );
-
-  if (!id) {
+  if (!id || messagesError) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Invalid chatroom ID</Text>
+        <Text style={styles.errorText}>
+          {!id ? 'Invalid chatroom ID' : messagesError}
+        </Text>
       </View>
     );
   }
-
-  if (messagesError) {
-    return <Text style={styles.errorText}>{messagesError}</Text>;
-  }
-
-  
-  const loading = profileLoading || messagesLoading;
 
   return (
     <KeyboardAvoidingView
@@ -199,25 +263,85 @@ export default function ChatRoomScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <FlatList
-        ref={flatListRef}
-        data={Platform.OS === 'web' ? [...messages].reverse() : messages}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        onEndReached={fetchMoreMessages}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={loading ? <ActivityIndicator /> : null}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-          />
-        }
-        inverted={Platform.OS !== 'web'}
-        style={Platform.OS === 'web' ? styles.webList : undefined}
-        contentContainerStyle={Platform.OS === 'web' ? styles.webListContent : undefined}
+      <GiftedChat
+        messages={messages.map(transformToGiftedMessage)}
+        onSend={onSend}
+        user={{
+          _id: session?.user?.id || '',
+          name: profile?.username || 'Me',
+          avatar: profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session?.user?.id}`
+        }}
+        text={composerText}
+        onInputTextChanged={handleInputTextChanged}
+        renderBubble={renderBubble}
+        renderInputToolbar={renderInputToolbar}
+        renderSend={renderSend}
+        showAvatarForEveryMessage={true}
+        renderAvatarOnTop={true}
+        showUserAvatar={true}
+        alwaysShowSend
+        scrollToBottomComponent={() => null}
+        inverted={true}
+        infiniteScroll
+        isLoadingEarlier={messagesLoading}
+        onLoadEarlier={fetchMoreMessages}
+        loadEarlier={hasMore}
+        renderUsernameOnMessage={true}
+        renderFooter={() => typingUsers.size > 0 ? <TypingIndicator /> : null}
       />
-      <MessageInput onSend={handleSend} disabled={!profile || loading} />
+      <Modal
+        visible={isEmojiPickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsEmojiPickerVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          onPress={() => setIsEmojiPickerVisible(false)}
+        >
+          <View style={styles.emojiPickerContainer}>
+            <EmojiSelector
+              onEmojiSelected={(emoji) => {
+                setComposerText(prev => prev + emoji);
+                setIsEmojiPickerVisible(false);
+              }}
+              showSearchBar={false}
+              columns={8}
+              showHistory={false}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+      <Modal
+        visible={isColorPickerVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsColorPickerVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          onPress={() => setIsColorPickerVisible(false)}
+        >
+          <View style={styles.colorPickerContainer}>
+            <View style={styles.colorGrid}>
+              {bubbleColors.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: color },
+                    currentBubbleColor === color && styles.selectedColor
+                  ]}
+                  onPress={() => {
+                    setCurrentBubbleColor(color);
+                    setIsColorPickerVisible(false);
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -232,14 +356,79 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontSize: 16,
   },
-  webList: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
+  actionButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+    marginRight: 4,
+    marginBottom: 0,
   },
-  webListContent: {
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'flex-start',
-  }
+  composer: {
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    marginLeft: 0,
+    marginRight: 5,
+    marginBottom: 5,
+    minHeight: 40,
+  },
+  inputToolbar: {
+    padding: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  emojiPickerContainer: {
+    backgroundColor: 'white',
+    height: '40%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+  },
+  colorPickerContainer: {
+    backgroundColor: 'white',
+    padding: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginBottom: 80,
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  colorOption: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    margin: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  selectedColor: {
+    borderColor: '#000',
+    transform: [{ scale: 1.1 }],
+  },
+  sendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  colorButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  sendButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
 });

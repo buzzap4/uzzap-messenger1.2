@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import Avatar from '@/components/Avatar';
@@ -136,6 +136,9 @@ const styles = StyleSheet.create({
   header: {
     padding: 16,
     borderBottomWidth: 1,
+    paddingTop: Platform.OS === 'android' ? 30 : 16, // Add extra padding for Android
+    minHeight: Platform.OS === 'android' ? 80 : 60, // Ensure minimum height
+    justifyContent: 'center',
   },
   title: {
     fontSize: 24,
